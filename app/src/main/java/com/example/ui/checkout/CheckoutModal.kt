@@ -97,6 +97,7 @@ fun CheckoutModal(
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val cartSummary by viewModel.cartSummary.collectAsStateWithLifecycle()
+    val orderType by viewModel.orderType.collectAsStateWithLifecycle()
     val grandTotal = cartSummary.grandTotal
 
     var selectedTab by remember { mutableStateOf(PaymentTab.CASH) }
@@ -199,7 +200,53 @@ fun CheckoutModal(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Order Type Segmented Control
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(SurfaceSubtle)
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (orderType == "DINE_IN") BrandBlue else Color.Transparent)
+                        .clickable { viewModel.setOrderType("DINE_IN") }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🍽️ Makan di Tempat",
+                        fontSize = 12.sp,
+                        fontWeight = if (orderType == "DINE_IN") FontWeight.Bold else FontWeight.Medium,
+                        color = if (orderType == "DINE_IN") Color.White else TextDarkPrimary
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (orderType == "TAKEAWAY") BrandBlue else Color.Transparent)
+                        .clickable { viewModel.setOrderType("TAKEAWAY") }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🥡 Bungkus (Takeaway)",
+                        fontSize = 12.sp,
+                        fontWeight = if (orderType == "TAKEAWAY") FontWeight.Bold else FontWeight.Medium,
+                        color = if (orderType == "TAKEAWAY") Color.White else TextDarkPrimary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Segmented Control
             IosSegmentedControl(

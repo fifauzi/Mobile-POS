@@ -47,14 +47,15 @@ object EscPosPrinterService {
     fun buildReceiptBytes(
         order: OrderEntity,
         items: List<OrderItemEntity>,
-        storeName: String = "CAFFEINERY SPECIALTY",
+        storeName: String = "CAFFEINERY POS BY BDS TECH",
         storeAddress: String = "Jl. Senopati No. 42, Jakarta",
         storePhone: String = "Telp: +62 21 555-8900",
         footerMessage: String = "Thank you for your visit!\nFree Wi-Fi: caffeinery_guest (pass: espresso99)"
     ): ByteArray {
         val out = ByteArrayOutputStream()
-        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID"))
         val dateStr = dateFormat.format(Date(order.timestamp))
+        val orderTypeLabel = if (order.orderType == "TAKEAWAY") "BUNGKUS (TAKEAWAY)" else "MAKAN DI TEMPAT (DINE-IN)"
 
         // 1. Initialize
         out.write(ESC_INIT)
@@ -75,9 +76,11 @@ object EscPosPrinterService {
         // 3. Invoice & Metadata (Left Aligned)
         out.write(ESC_ALIGN_LEFT)
         out.write(formatTwoColumns("Invoice:", order.invoiceNumber).toByteArray(Charsets.ISO_8859_1))
-        out.write(formatTwoColumns("Date:", dateStr).toByteArray(Charsets.ISO_8859_1))
-        out.write(formatTwoColumns("Customer:", order.customerName).toByteArray(Charsets.ISO_8859_1))
-        out.write(formatTwoColumns("Payment:", order.paymentMethod).toByteArray(Charsets.ISO_8859_1))
+        out.write(formatTwoColumns("Kasir:", "${order.cashierName} (${order.shiftName})").toByteArray(Charsets.ISO_8859_1))
+        out.write(formatTwoColumns("Tipe:", orderTypeLabel).toByteArray(Charsets.ISO_8859_1))
+        out.write(formatTwoColumns("Waktu:", dateStr).toByteArray(Charsets.ISO_8859_1))
+        out.write(formatTwoColumns("Pelanggan:", order.customerName).toByteArray(Charsets.ISO_8859_1))
+        out.write(formatTwoColumns("Pembayaran:", order.paymentMethod).toByteArray(Charsets.ISO_8859_1))
         out.write(solidLine().toByteArray(Charsets.ISO_8859_1))
 
         // 4. Line Items
@@ -106,10 +109,13 @@ object EscPosPrinterService {
         // 5. Totals & Tax
         out.write(formatTwoColumns("Subtotal:", formatIdr(order.subtotal)).toByteArray(Charsets.ISO_8859_1))
         if (order.orderDiscountAmount > 0) {
-            out.write(formatTwoColumns("Order Discount:", "-${formatIdr(order.orderDiscountAmount)}").toByteArray(Charsets.ISO_8859_1))
+            out.write(formatTwoColumns("Diskon Pesanan:", "-${formatIdr(order.orderDiscountAmount)}").toByteArray(Charsets.ISO_8859_1))
+        }
+        if (order.serviceFeeAmount > 0) {
+            out.write(formatTwoColumns("Biaya Layanan (${order.serviceFeePercentage.toInt()}%):", formatIdr(order.serviceFeeAmount)).toByteArray(Charsets.ISO_8859_1))
         }
         if (order.taxAmount > 0) {
-            out.write(formatTwoColumns("PB1 Tax (${order.taxPercentage.toInt()}%):", formatIdr(order.taxAmount)).toByteArray(Charsets.ISO_8859_1))
+            out.write(formatTwoColumns("Pajak PB1 (${order.taxPercentage.toInt()}%):", formatIdr(order.taxAmount)).toByteArray(Charsets.ISO_8859_1))
         }
 
         out.write(solidLine().toByteArray(Charsets.ISO_8859_1))

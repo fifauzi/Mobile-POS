@@ -5,6 +5,7 @@ import com.example.data.local.model.CategoryEntity
 import com.example.data.local.model.OrderEntity
 import com.example.data.local.model.OrderItemEntity
 import com.example.data.local.model.ProductEntity
+import com.example.data.local.model.OpenBillEntity
 import com.example.data.local.model.VariantGroupEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -15,6 +16,7 @@ class PosRepository(private val posDao: PosDao) {
     val orders: Flow<List<OrderEntity>> = posDao.getAllOrders()
     val allOrderItems: Flow<List<OrderItemEntity>> = posDao.getAllOrderItems()
     val variantGroups: Flow<List<VariantGroupEntity>> = posDao.getAllVariantGroups()
+    val activeOpenBills: Flow<List<OpenBillEntity>> = posDao.getActiveOpenBills()
 
     fun getOrderItems(invoiceNumber: String): Flow<List<OrderItemEntity>> {
         return posDao.getOrderItemsForInvoice(invoiceNumber)
@@ -66,5 +68,13 @@ class PosRepository(private val posDao: PosDao) {
 
     suspend fun completeSale(order: OrderEntity, items: List<OrderItemEntity>) {
         posDao.recordSale(order, items)
+    }
+
+    suspend fun saveOpenBill(bill: OpenBillEntity) {
+        posDao.insertOpenBill(bill)
+    }
+
+    suspend fun deleteOpenBill(id: String) {
+        posDao.deleteOpenBillById(id)
     }
 }

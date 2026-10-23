@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Caffeinery POS"
+rootProject.name = "Caffeinery POS by BDS Tech"
 
 include(":app")

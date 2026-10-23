@@ -12,6 +12,7 @@ import com.example.data.local.model.OrderItemEntity
 import com.example.data.local.model.ProductEntity
 import com.example.data.local.model.VariantGroupEntity
 import kotlinx.coroutines.CoroutineScope
+import com.example.data.local.model.OpenBillEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -21,9 +22,10 @@ import kotlinx.coroutines.launch
         ProductEntity::class,
         OrderEntity::class,
         OrderItemEntity::class,
-        VariantGroupEntity::class
+        VariantGroupEntity::class,
+        OpenBillEntity::class
     ],
-    version = 2,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -62,6 +64,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
 
             private suspend fun populateInitialData(dao: PosDao) {
+                // Seed Default Ready-to-Use Categories
                 val categories = listOf(
                     CategoryEntity("coffee", "Coffee", "coffee", "#7C4A27", 1),
                     CategoryEntity("non_coffee", "Non-Coffee", "local_cafe", "#2563EB", 2),
@@ -71,7 +74,7 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 dao.insertCategories(categories)
 
-                // Seed Global Variant Groups (Matching Reference & Strict Requirements)
+                // Seed Default Ready-to-Use Variant Groups & Options Template
                 val initialVariantGroups = listOf(
                     VariantGroupEntity(
                         id = "size",
@@ -123,269 +126,6 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                 )
                 dao.insertVariantGroups(initialVariantGroups)
-
-                val defaultCoffeeVariants = """[
-                    {"name":"Size","isMultiSelect":false,"options":[{"name":"Regular","price":0.0},{"name":"Large","price":5000.0}]},
-                    {"name":"Type","isMultiSelect":false,"options":[{"name":"Iced","price":0.0},{"name":"Hot","price":0.0}]},
-                    {"name":"Beans Type","isMultiSelect":false,"options":[{"name":"House Blend (Brazil/Sumatra)","price":0.0},{"name":"Single Origin Ethiopia","price":8000.0},{"name":"Swiss Decaf","price":5000.0}]},
-                    {"name":"Sugar Level","isMultiSelect":false,"options":[{"name":"Normal 100%","price":0.0},{"name":"Less Sugar 50%","price":0.0},{"name":"No Sugar 0%","price":0.0}]},
-                    {"name":"Add-ons","isMultiSelect":true,"options":[{"name":"Extra Espresso Shot","price":6000.0},{"name":"Oat Milk Sub","price":8000.0}]}
-                ]""".trimIndent()
-
-                val products = listOf(
-                    ProductEntity(
-                        sku = "CF-001",
-                        name = "Spanish Latte",
-                        categoryId = "coffee",
-                        basePrice = 35000.0,
-                        costPrice = 14000.0,
-                        stockQuantity = 85,
-                        unit = "cup",
-                        description = "Espresso with sweet textured condensed milk and fresh milk",
-                        iconName = "coffee",
-                        variantsJson = defaultCoffeeVariants
-                    ),
-                    ProductEntity(
-                        sku = "CF-002",
-                        name = "Caramel Macchiato",
-                        categoryId = "coffee",
-                        basePrice = 38000.0,
-                        costPrice = 16000.0,
-                        stockQuantity = 64,
-                        unit = "cup",
-                        description = "Layered espresso with vanilla syrup, steamed milk and artisan caramel drizzle",
-                        iconName = "coffee",
-                        variantsJson = defaultCoffeeVariants
-                    ),
-                    ProductEntity(
-                        sku = "CF-003",
-                        name = "Espresso Romano",
-                        categoryId = "coffee",
-                        basePrice = 25000.0,
-                        costPrice = 8000.0,
-                        stockQuantity = 90,
-                        unit = "cup",
-                        description = "Classic double ristretto espresso served with fresh lemon peel garnish",
-                        iconName = "coffee",
-                        variantsJson = defaultCoffeeVariants
-                    ),
-                    ProductEntity(
-                        sku = "CF-004",
-                        name = "V60 Hand Drip Pour Over",
-                        categoryId = "coffee",
-                        basePrice = 34000.0,
-                        costPrice = 12000.0,
-                        stockQuantity = 50,
-                        unit = "cup",
-                        description = "Clean floral pour-over with balanced acidity and crisp finish",
-                        iconName = "coffee",
-                        variantsJson = defaultCoffeeVariants
-                    ),
-                    ProductEntity(
-                        sku = "NC-001",
-                        name = "Matcha Oat Latte",
-                        categoryId = "non_coffee",
-                        basePrice = 36000.0,
-                        costPrice = 15000.0,
-                        stockQuantity = 45,
-                        unit = "cup",
-                        description = "Ceremonial grade Uji matcha with velvety barista oat milk",
-                        iconName = "local_cafe",
-                        variantsJson = """[
-                            {"name":"Size","isMultiSelect":false,"options":[{"name":"Regular","price":0.0},{"name":"Large","price":5000.0}]},
-                            {"name":"Type","isMultiSelect":false,"options":[{"name":"Iced","price":0.0},{"name":"Hot","price":0.0}]},
-                            {"name":"Sugar Level","isMultiSelect":false,"options":[{"name":"Normal 100%","price":0.0},{"name":"Less Sugar 50%","price":0.0},{"name":"No Sugar 0%","price":0.0}]}
-                        ]""".trimIndent()
-                    ),
-                    ProductEntity(
-                        sku = "NC-002",
-                        name = "Dark Belgian Chocolate",
-                        categoryId = "non_coffee",
-                        basePrice = 34000.0,
-                        costPrice = 13000.0,
-                        stockQuantity = 40,
-                        unit = "cup",
-                        description = "Rich 70% dark Belgian cocoa blended with steamed whole milk",
-                        iconName = "local_cafe",
-                        variantsJson = """[
-                            {"name":"Size","isMultiSelect":false,"options":[{"name":"Regular","price":0.0},{"name":"Large","price":5000.0}]},
-                            {"name":"Type","isMultiSelect":false,"options":[{"name":"Iced","price":0.0},{"name":"Hot","price":0.0}]}
-                        ]""".trimIndent()
-                    ),
-                    ProductEntity(
-                        sku = "RB-001",
-                        name = "Ethiopia Yirgacheffe G1 250g",
-                        categoryId = "roasted_beans",
-                        basePrice = 125000.0,
-                        costPrice = 70000.0,
-                        stockQuantity = 22,
-                        unit = "bag",
-                        description = "Washed process. Notes of Jasmine, Bergamot, and Peach tea.",
-                        iconName = "grain",
-                        variantsJson = """[
-                            {"name":"Grind Size","isMultiSelect":false,"options":[{"name":"Whole Bean","price":0.0},{"name":"Espresso (Fine)","price":0.0},{"name":"V60 / Medium Filter","price":0.0},{"name":"Cold Brew / Coarse","price":0.0}]}
-                        ]""".trimIndent()
-                    ),
-                    ProductEntity(
-                        sku = "RB-002",
-                        name = "Aceh Gayo Wine Process 250g",
-                        categoryId = "roasted_beans",
-                        basePrice = 115000.0,
-                        costPrice = 65000.0,
-                        stockQuantity = 18,
-                        unit = "bag",
-                        description = "Fermented anaerobic natural. Intense grape, dark rum, and cacao.",
-                        iconName = "grain",
-                        variantsJson = """[
-                            {"name":"Grind Size","isMultiSelect":false,"options":[{"name":"Whole Bean","price":0.0},{"name":"Espresso (Fine)","price":0.0},{"name":"V60 / Medium Filter","price":0.0},{"name":"Cold Brew / Coarse","price":0.0}]}
-                        ]""".trimIndent()
-                    ),
-                    ProductEntity(
-                        sku = "PS-001",
-                        name = "Butter Croissant",
-                        categoryId = "pastry",
-                        basePrice = 28000.0,
-                        costPrice = 10000.0,
-                        stockQuantity = 32,
-                        unit = "pcs",
-                        description = "French cultured butter flaky croissant, freshly baked daily",
-                        iconName = "bakery_dining",
-                        variantsJson = """[
-                            {"name":"Serving","isMultiSelect":false,"options":[{"name":"Warmed Up","price":0.0},{"name":"Standard","price":0.0}]}
-                        ]""".trimIndent()
-                    ),
-                    ProductEntity(
-                        sku = "PS-002",
-                        name = "Pain Au Chocolat",
-                        categoryId = "pastry",
-                        basePrice = 32000.0,
-                        costPrice = 12000.0,
-                        stockQuantity = 26,
-                        unit = "pcs",
-                        description = "Double chocolate batons in golden laminated puff pastry",
-                        iconName = "bakery_dining",
-                        variantsJson = """[
-                            {"name":"Serving","isMultiSelect":false,"options":[{"name":"Warmed Up","price":0.0},{"name":"Standard","price":0.0}]}
-                        ]""".trimIndent()
-                    ),
-                    ProductEntity(
-                        sku = "BB-001",
-                        name = "Fresh Milk Pasteurized 1L",
-                        categoryId = "bahan_baku",
-                        basePrice = 24000.0,
-                        costPrice = 18000.0,
-                        stockQuantity = 48,
-                        unit = "bottle",
-                        description = "Raw material dairy supply for barista station",
-                        iconName = "inventory_2",
-                        variantsJson = ""
-                    ),
-                    ProductEntity(
-                        sku = "BB-002",
-                        name = "Oat Milk Barista Edition 1L",
-                        categoryId = "bahan_baku",
-                        basePrice = 45000.0,
-                        costPrice = 32000.0,
-                        stockQuantity = 30,
-                        unit = "bottle",
-                        description = "Non-dairy micro-foam milk stock",
-                        iconName = "inventory_2",
-                        variantsJson = ""
-                    )
-                )
-                dao.insertProducts(products)
-
-                // Add 2 initial completed orders for immediate analytics & P&L demonstration
-                val now = System.currentTimeMillis()
-                val order1 = OrderEntity(
-                    invoiceNumber = "INV-${System.currentTimeMillis() - 7200000}",
-                    timestamp = now - 7200000,
-                    customerName = "Budi Santoso",
-                    subtotal = 73000.0,
-                    itemDiscountTotal = 0.0,
-                    orderDiscountPercentage = 0.0,
-                    orderDiscountAmount = 0.0,
-                    taxPercentage = 10.0,
-                    taxAmount = 7300.0,
-                    grandTotal = 80300.0,
-                    paymentMethod = "QRIS",
-                    tenderedAmount = 80300.0,
-                    changeAmount = 0.0,
-                    paymentStatus = "PAID",
-                    notes = "Dine-in Table 4"
-                )
-                val order2 = OrderEntity(
-                    invoiceNumber = "INV-${System.currentTimeMillis() - 3600000}",
-                    timestamp = now - 3600000,
-                    customerName = "Sarah L.",
-                    subtotal = 67000.0,
-                    itemDiscountTotal = 5000.0,
-                    orderDiscountPercentage = 0.0,
-                    orderDiscountAmount = 0.0,
-                    taxPercentage = 10.0,
-                    taxAmount = 6200.0,
-                    grandTotal = 68200.0,
-                    paymentMethod = "CASH",
-                    tenderedAmount = 100000.0,
-                    changeAmount = 31800.0,
-                    paymentStatus = "PAID",
-                    notes = "Takeaway"
-                )
-                dao.insertOrders(listOf(order1, order2))
-
-                val item1 = OrderItemEntity(
-                    orderInvoiceNumber = order1.invoiceNumber,
-                    productId = 1,
-                    productName = "Spanish Latte",
-                    sku = "CF-001",
-                    basePrice = 35000.0,
-                    costPrice = 14000.0,
-                    variantSummary = "Large, Iced, Less Sugar",
-                    unitPrice = 40000.0,
-                    quantity = 1,
-                    itemDiscount = 0.0,
-                    lineTotal = 40000.0
-                )
-                val item2 = OrderItemEntity(
-                    orderInvoiceNumber = order1.invoiceNumber,
-                    productId = 2,
-                    productName = "Caramel Macchiato",
-                    sku = "CF-002",
-                    basePrice = 38000.0,
-                    costPrice = 16000.0,
-                    variantSummary = "Regular, Hot",
-                    unitPrice = 38000.0,
-                    quantity = 1,
-                    itemDiscount = 5000.0,
-                    lineTotal = 33000.0
-                )
-                val item3 = OrderItemEntity(
-                    orderInvoiceNumber = order2.invoiceNumber,
-                    productId = 10,
-                    productName = "Pain Au Chocolat",
-                    sku = "PS-002",
-                    basePrice = 32000.0,
-                    costPrice = 12000.0,
-                    variantSummary = "Warmed Up",
-                    unitPrice = 32000.0,
-                    quantity = 1,
-                    itemDiscount = 0.0,
-                    lineTotal = 32000.0
-                )
-                val item4 = OrderItemEntity(
-                    orderInvoiceNumber = order2.invoiceNumber,
-                    productId = 1,
-                    productName = "Spanish Latte",
-                    sku = "CF-001",
-                    basePrice = 35000.0,
-                    costPrice = 14000.0,
-                    variantSummary = "Regular, Iced",
-                    unitPrice = 35000.0,
-                    quantity = 1,
-                    itemDiscount = 0.0,
-                    lineTotal = 35000.0
-                )
-                dao.insertOrderItems(listOf(item1, item2, item3, item4))
             }
         }
     }

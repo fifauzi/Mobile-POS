@@ -31,6 +31,11 @@ import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.settings.SettingsScreen
 import com.example.ui.theme.ScaffoldBg
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.example.ui.splash.SplashScreen
+
 class MainActivity : ComponentActivity() {
 
     private val posViewModel: PosViewModel by viewModels()
@@ -40,7 +45,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                PosAppRoot(viewModel = posViewModel)
+                var showSplash by rememberSaveable { mutableStateOf(true) }
+                if (showSplash) {
+                    SplashScreen(onSplashFinished = { showSplash = false })
+                } else {
+                    PosAppRoot(viewModel = posViewModel)
+                }
             }
         }
     }
@@ -56,12 +66,12 @@ fun PosAppRoot(viewModel: PosViewModel) {
     val cartSummary by viewModel.cartSummary.collectAsStateWithLifecycle()
 
     // Back handling
-    BackHandler(enabled = isReceiptModalOpen || isCheckoutModalOpen || isCartSheetOpen || currentTab != PosTab.BERANDA) {
+    BackHandler(enabled = isReceiptModalOpen || isCheckoutModalOpen || isCartSheetOpen || currentTab != PosTab.DASHBOARD) {
         when {
             isReceiptModalOpen -> viewModel.closeReceiptModal()
             isCheckoutModalOpen -> viewModel.closeCheckoutModal()
             isCartSheetOpen -> viewModel.closeCartSheet()
-            currentTab != PosTab.BERANDA -> viewModel.setCurrentTab(PosTab.BERANDA)
+            currentTab != PosTab.DASHBOARD -> viewModel.setCurrentTab(PosTab.DASHBOARD)
         }
     }
 
@@ -84,7 +94,7 @@ fun PosAppRoot(viewModel: PosViewModel) {
             label = "TabCrossfade"
         ) { tab ->
             when (tab) {
-                PosTab.BERANDA -> DashboardScreen(viewModel = viewModel)
+                PosTab.DASHBOARD -> DashboardScreen(viewModel = viewModel)
                 PosTab.KASIR -> CatalogScreen(viewModel = viewModel)
                 PosTab.KATALOG -> InventoryScreen(viewModel = viewModel)
                 PosTab.TRANSAKSI -> OrdersHistoryScreen(viewModel = viewModel)

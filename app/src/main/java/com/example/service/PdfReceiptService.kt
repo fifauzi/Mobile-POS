@@ -28,11 +28,13 @@ object PdfReceiptService {
     fun generateReceiptPdf(
         context: Context,
         order: OrderEntity,
-        items: List<OrderItemEntity>
+        items: List<OrderItemEntity>,
+        outletInfo: com.example.domain.model.OutletInfo = com.example.domain.model.OutletInfo(),
+        receiptConfig: com.example.domain.model.ReceiptCustomizerConfig = com.example.domain.model.ReceiptCustomizerConfig()
     ): File? {
         return try {
             val pageWidth = 384 // 58mm / 80mm receipt width standard in points
-            val baseHeight = 520
+            val baseHeight = 540
             val itemHeight = items.size * 32
             val pageHeight = baseHeight + itemHeight
 
@@ -83,12 +85,12 @@ object PdfReceiptService {
             val margin = 24f
             val rightMargin = pageWidth - margin
 
-            // Store Header
-            canvas.drawText("CAFFEINERY SPECIALTY COFFEE", centerX, currentY, titlePaint)
+            // Dynamic Store Header
+            canvas.drawText(outletInfo.name.uppercase(), centerX, currentY, titlePaint)
             currentY += 16f
-            canvas.drawText("Jl. Senopati No. 42, Kebayoran Baru, Jakarta", centerX, currentY, subtitlePaint)
+            canvas.drawText("${outletInfo.address} (${outletInfo.branch})", centerX, currentY, subtitlePaint)
             currentY += 14f
-            canvas.drawText("Telp: +62 812-9988-7766 • IG: @caffeinery.pos", centerX, currentY, subtitlePaint)
+            canvas.drawText("Telp: ${outletInfo.phone} • IG: ${outletInfo.instagram}", centerX, currentY, subtitlePaint)
             currentY += 18f
 
             // Dashed Divider
@@ -96,14 +98,17 @@ object PdfReceiptService {
             currentY += 16f
 
             // Order Metadata
-            val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale("id", "ID"))
+            val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID"))
             drawRow(canvas, "No. Invoice", order.invoiceNumber, margin, rightMargin, currentY, textPaint)
+            currentY += 14f
+            val orderTypeLabel = if (order.orderType == "TAKEAWAY") "Bungkus (Takeaway)" else "Makan di Tempat (Dine-in)"
+            drawRow(canvas, "Tipe Pesanan", orderTypeLabel, margin, rightMargin, currentY, boldPaint)
             currentY += 14f
             drawRow(canvas, "Waktu Transaksi", dateFormat.format(Date(order.timestamp)), margin, rightMargin, currentY, textPaint)
             currentY += 14f
             drawRow(canvas, "Pelanggan", order.customerName.ifEmpty { "Walk-in Guest" }, margin, rightMargin, currentY, textPaint)
             currentY += 14f
-            drawRow(canvas, "Kasir", "Barista Team #1", margin, rightMargin, currentY, textPaint)
+            drawRow(canvas, "Kasir / Shift", "${order.cashierName} (${order.shiftName})", margin, rightMargin, currentY, boldPaint)
             currentY += 14f
             drawRow(canvas, "Metode Pembayaran", order.paymentMethod, margin, rightMargin, currentY, textPaint)
             currentY += 18f
@@ -146,8 +151,15 @@ object PdfReceiptService {
                 currentY += 14f
             }
 
-            drawRow(canvas, "Pajak PB1 (10%)", CurrencyUtils.formatIdr(order.taxAmount), margin, rightMargin, currentY, textPaint)
-            currentY += 18f
+            if (order.serviceFeeAmount > 0) {
+                drawRow(canvas, "Biaya Layanan (${order.serviceFeePercentage.toInt()}%)", CurrencyUtils.formatIdr(order.serviceFeeAmount), margin, rightMargin, currentY, textPaint)
+                currentY += 14f
+            }
+
+            if (order.taxAmount > 0) {
+                drawRow(canvas, "Pajak PB1 (${order.taxPercentage.toInt()}%)", CurrencyUtils.formatIdr(order.taxAmount), margin, rightMargin, currentY, textPaint)
+                currentY += 18f
+            }
 
             canvas.drawLine(margin, currentY, rightMargin, currentY, linePaint)
             currentY += 18f
@@ -174,7 +186,7 @@ object PdfReceiptService {
 
             // Footer
             subtitlePaint.textAlign = Paint.Align.CENTER
-            canvas.drawText("Terima kasih atas kunjungan Anda!", centerX, currentY, subtitlePaint)
+            canvas.drawText(receiptConfig.footerNote, centerX, currentY, subtitlePaint)
             currentY += 14f
             canvas.drawText("Struk ini merupakan bukti pembayaran yang sah", centerX, currentY, subtitlePaint)
             currentY += 14f
@@ -220,14 +232,25 @@ object PdfReceiptService {
     /**
      * Builds standard formatted Indonesian WhatsApp Receipt message text
      */
-    fun buildWhatsAppReceiptMessage(order: OrderEntity, items: List<OrderItemEntity>): String {
-        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("id", "ID"))
+    fun buildWhatsAppReceiptMessage(
+        order: OrderEntity,
+        items: List<OrderItemEntity>,
+        outletInfo: com.example.domain.model.OutletInfo = com.example.domain.model.OutletInfo(),
+        receiptConfig: com.example.domain.model.ReceiptCustomizerConfig = com.example.domain.model.ReceiptCustomizerConfig()
+    ): String {
+        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID"))
         val dateStr = dateFormat.format(Date(order.timestamp))
         val sb = StringBuilder()
 
-        sb.appendLine("☕ *STRUK PEMBAYARAN - CAFFEINERY*")
+        val orderTypeStr = if (order.orderType == "TAKEAWAY") "Bungkus (Takeaway)" else "Makan di Tempat (Dine-in)"
+
+        sb.appendLine("☕ *STRUK PEMBAYARAN - ${outletInfo.name.uppercase()}*")
+        sb.appendLine("${outletInfo.address} (${outletInfo.branch})")
+        sb.appendLine("Telp: ${outletInfo.phone}")
         sb.appendLine("━━━━━━━━━━━━━━━━━━")
         sb.appendLine("🧾 *No. Invoice:* ${order.invoiceNumber}")
+        sb.appendLine("👨‍🍳 *Kasir:* ${order.cashierName} (${order.shiftName})")
+        sb.appendLine("🍽️ *Tipe:* $orderTypeStr")
         sb.appendLine("📅 *Waktu:* $dateStr")
         sb.appendLine("👤 *Pelanggan:* ${order.customerName.ifEmpty { "Walk-in Guest" }}")
         sb.appendLine("💳 *Metode:* ${order.paymentMethod} (LUNAS)")
@@ -250,7 +273,12 @@ object PdfReceiptService {
         if (totalDisc > 0) {
             sb.appendLine("Total Diskon: -${CurrencyUtils.formatIdr(totalDisc)}")
         }
-        sb.appendLine("Pajak PB1 (10%): ${CurrencyUtils.formatIdr(order.taxAmount)}")
+        if (order.serviceFeeAmount > 0) {
+            sb.appendLine("Biaya Layanan (${order.serviceFeePercentage.toInt()}%): ${CurrencyUtils.formatIdr(order.serviceFeeAmount)}")
+        }
+        if (order.taxAmount > 0) {
+            sb.appendLine("Pajak PB1 (${order.taxPercentage.toInt()}%): ${CurrencyUtils.formatIdr(order.taxAmount)}")
+        }
         sb.appendLine("*TOTAL BAYAR: ${CurrencyUtils.formatIdr(order.grandTotal)}*")
 
         if (order.paymentMethod == "CASH") {
@@ -259,8 +287,8 @@ object PdfReceiptService {
         }
 
         sb.appendLine("━━━━━━━━━━━━━━━━━━")
-        sb.appendLine("Terima kasih telah berkunjung ke *Caffeinery Specialty Coffee*! 🙏☕")
-        sb.appendLine("_Simpan pesan ini sebagai bukti transaksi resmi._")
+        sb.appendLine(receiptConfig.footerNote)
+        sb.appendLine("_Struk resmi pembayaran digital Caffeinery POS by BDS Tech._")
 
         return sb.toString()
     }
@@ -272,9 +300,11 @@ object PdfReceiptService {
         context: Context,
         order: OrderEntity,
         items: List<OrderItemEntity>,
-        customerPhone: String = ""
+        customerPhone: String = "",
+        outletInfo: com.example.domain.model.OutletInfo = com.example.domain.model.OutletInfo(),
+        receiptConfig: com.example.domain.model.ReceiptCustomizerConfig = com.example.domain.model.ReceiptCustomizerConfig()
     ) {
-        val message = buildWhatsAppReceiptMessage(order, items)
+        val message = buildWhatsAppReceiptMessage(order, items, outletInfo, receiptConfig)
         try {
             val cleanPhone = customerPhone.replace(Regex("[^0-9]"), "").let {
                 if (it.startsWith("0")) "62" + it.substring(1) else it
@@ -309,9 +339,11 @@ object PdfReceiptService {
     fun sharePdfReceipt(
         context: Context,
         order: OrderEntity,
-        items: List<OrderItemEntity>
+        items: List<OrderItemEntity>,
+        outletInfo: com.example.domain.model.OutletInfo = com.example.domain.model.OutletInfo(),
+        receiptConfig: com.example.domain.model.ReceiptCustomizerConfig = com.example.domain.model.ReceiptCustomizerConfig()
     ) {
-        val pdfFile = generateReceiptPdf(context, order, items)
+        val pdfFile = generateReceiptPdf(context, order, items, outletInfo, receiptConfig)
         if (pdfFile == null || !pdfFile.exists()) {
             Toast.makeText(context, "Gagal membuat dokumen PDF", Toast.LENGTH_SHORT).show()
             return
@@ -325,7 +357,7 @@ object PdfReceiptService {
                 type = "application/pdf"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, "Struk_${order.invoiceNumber}.pdf")
-                putExtra(Intent.EXTRA_TEXT, buildWhatsAppReceiptMessage(order, items))
+                putExtra(Intent.EXTRA_TEXT, buildWhatsAppReceiptMessage(order, items, outletInfo, receiptConfig))
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }

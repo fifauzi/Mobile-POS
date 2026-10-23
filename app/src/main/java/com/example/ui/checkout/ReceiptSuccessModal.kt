@@ -75,6 +75,8 @@ fun ReceiptSuccessModal(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val isPrinting by viewModel.isPrintingAnimation.collectAsStateWithLifecycle()
     val printerStatus by viewModel.printerStatusMessage.collectAsStateWithLifecycle()
+    val outletInfo by viewModel.outletInfo.collectAsStateWithLifecycle()
+    val receiptConfig by viewModel.receiptCustomizer.collectAsStateWithLifecycle()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -149,20 +151,20 @@ fun ReceiptSuccessModal(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "CAFFEINERY SPECIALTY",
+                        text = outletInfo.name.uppercase(),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
                         color = Color(0xFF0F172A)
                     )
                     Text(
-                        text = "Jl. Senopati No. 42, Jakarta Selatan",
+                        text = "${outletInfo.address} (${outletInfo.branch})",
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         color = Color(0xFF64748B)
                     )
                     Text(
-                        text = "Telp: +62 812-9988-7766",
+                        text = "Telp: ${outletInfo.phone}",
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         color = Color(0xFF64748B)
@@ -171,7 +173,9 @@ fun ReceiptSuccessModal(
                     ReceiptDashedLine()
 
                     ReceiptRowMonospace("INVOICE", order.invoiceNumber)
-                    val dateFormatted = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(order.timestamp))
+                    val orderTypeLabel = if (order.orderType == "TAKEAWAY") "BUNGKUS (TAKEAWAY)" else "MAKAN DI TEMPAT (DINE-IN)"
+                    ReceiptRowMonospace("TIPE PESANAN", orderTypeLabel)
+                    val dateFormatted = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID")).format(Date(order.timestamp))
                     ReceiptRowMonospace("WAKTU", dateFormatted)
                     ReceiptRowMonospace("KASIR", "Barista Team")
                     ReceiptRowMonospace("PELANGGAN", order.customerName.ifEmpty { "Pelanggan Walk-in" })
@@ -231,7 +235,12 @@ fun ReceiptSuccessModal(
                     if (totalDiscount > 0) {
                         ReceiptRowMonospace("TOTAL DISKON", "-${CurrencyUtils.formatIdr(totalDiscount)}")
                     }
-                    ReceiptRowMonospace("PAJAK PB1 (10%)", CurrencyUtils.formatIdr(order.taxAmount))
+                    if (order.serviceFeeAmount > 0) {
+                        ReceiptRowMonospace("BIAYA LAYANAN (${order.serviceFeePercentage.toInt()}%)", CurrencyUtils.formatIdr(order.serviceFeeAmount))
+                    }
+                    if (order.taxAmount > 0) {
+                        ReceiptRowMonospace("PAJAK PB1 (${order.taxPercentage.toInt()}%)", CurrencyUtils.formatIdr(order.taxAmount))
+                    }
 
                     ReceiptDashedLine()
 
@@ -264,7 +273,7 @@ fun ReceiptSuccessModal(
                     ReceiptDashedLine()
 
                     Text(
-                        text = "Terima kasih atas kunjungan Anda!",
+                        text = receiptConfig.footerNote,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         color = Color(0xFF64748B),
@@ -272,7 +281,7 @@ fun ReceiptSuccessModal(
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     Text(
-                        text = "Simpan struk ini sebagai bukti pembayaran",
+                        text = "Simpan struk ini sebagai bukti pembayaran sah",
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace,
                         color = Color(0xFF94A3B8),
@@ -300,7 +309,9 @@ fun ReceiptSuccessModal(
                     com.example.service.PdfReceiptService.shareReceiptToWhatsApp(
                         context = context,
                         order = order,
-                        items = items
+                        items = items,
+                        outletInfo = outletInfo,
+                        receiptConfig = receiptConfig
                     )
                 },
                 modifier = Modifier
@@ -348,7 +359,13 @@ fun ReceiptSuccessModal(
             ) {
                 OutlinedButton(
                     onClick = {
-                        com.example.service.PdfReceiptService.sharePdfReceipt(context, order, items)
+                        com.example.service.PdfReceiptService.sharePdfReceipt(
+                            context = context,
+                            order = order,
+                            items = items,
+                            outletInfo = outletInfo,
+                            receiptConfig = receiptConfig
+                        )
                     },
                     modifier = Modifier
                         .weight(1f)

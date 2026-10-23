@@ -25,10 +25,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,8 +41,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -87,10 +92,12 @@ fun AnalyticsScreen(
     val context = LocalContext.current
     val orders by viewModel.orders.collectAsStateWithLifecycle()
     val allOrderItems by viewModel.allOrderItems.collectAsStateWithLifecycle()
+    val outletInfo by viewModel.outletInfo.collectAsStateWithLifecycle()
 
     var selectedTabIdx by remember { mutableIntStateOf(0) }
     var filterLabel by remember { mutableStateOf("Hari ini") }
     var isDateDropdownOpen by remember { mutableStateOf(false) }
+    var isEmailDialogVisible by remember { mutableStateOf(false) }
 
     val filteredOrders = remember(orders, filterLabel) {
         val now = System.currentTimeMillis()
@@ -208,27 +215,51 @@ fun AnalyticsScreen(
                     )
                 }
 
-                // Fully Responsive Export Button with compact padding & auto scaling
-                Button(
-                    onClick = { viewModel.exportSalesCsv(context) },
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
-                    shape = RoundedCornerShape(20.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    modifier = Modifier.testTag("export_csv_btn")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FileDownload,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Unduh CSV",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                // Action Buttons: Send to Email & Download CSV
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Button(
+                        onClick = { isEmailDialogVisible = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F766E)),
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.testTag("send_email_report_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Email",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Button(
+                        onClick = { viewModel.exportSalesCsv(context) },
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.testTag("export_csv_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileDownload,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Unduh CSV",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
 
@@ -264,7 +295,7 @@ fun AnalyticsScreen(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Caffeinery Senopati (Outlet #01)",
+                            text = "${outletInfo.name} (${outletInfo.branch})",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = TextDarkPrimary
@@ -648,6 +679,62 @@ fun AnalyticsScreen(
 
             Spacer(modifier = Modifier.height(100.dp))
         }
+    }
+
+    if (isEmailDialogVisible) {
+        var emailInput by remember { mutableStateOf("bdscoffeecompany@gmail.com") }
+        AlertDialog(
+            onDismissRequest = { isEmailDialogVisible = false },
+            title = {
+                Text(
+                    text = "Kirim Laporan ke Email",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = TextDarkPrimary
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "File spreadsheet CSV laporan transaksi penjualan lengkap akan dikirim langsung ke alamat email:",
+                        fontSize = 13.sp,
+                        color = TextDarkSecondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = emailInput,
+                        onValueChange = { emailInput = it },
+                        label = { Text("Email Penerima") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BrandBlue,
+                            unfocusedBorderColor = BorderSubtle
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (emailInput.isNotBlank()) {
+                            viewModel.sendSalesReportEmail(context, emailInput.trim())
+                            isEmailDialogVisible = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Kirim Sekarang", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isEmailDialogVisible = false }) {
+                    Text("Batal")
+                }
+            }
+        )
     }
 }
 

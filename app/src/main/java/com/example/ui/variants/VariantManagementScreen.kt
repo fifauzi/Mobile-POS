@@ -500,23 +500,29 @@ fun VariantGroupEditorBottomSheet(
                 OutlinedTextField(
                     value = newOptionName,
                     onValueChange = { newOptionName = it },
-                    placeholder = { Text("Nama (ex: Large)", fontSize = 12.sp, maxLines = 1) },
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                    placeholder = { Text("Nama Opsi (ex: Large)", fontSize = 11.sp, color = TextDarkMuted, maxLines = 1) },
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandBlue, unfocusedBorderColor = BorderSubtle),
-                    modifier = Modifier.weight(1.3f)
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = BrandBlue,
+                        unfocusedBorderColor = BorderSubtle
+                    ),
+                    modifier = Modifier.weight(1.2f)
                 )
 
                 OutlinedTextField(
                     value = newOptionPriceText,
                     onValueChange = { newOptionPriceText = it.filter { c -> c.isDigit() } },
-                    placeholder = { Text("+Rp", fontSize = 12.sp, maxLines = 1) },
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                    placeholder = { Text("Harga (+Rp)", fontSize = 11.sp, color = TextDarkMuted, maxLines = 1) },
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandBlue, unfocusedBorderColor = BorderSubtle),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = BrandBlue,
+                        unfocusedBorderColor = BorderSubtle
+                    ),
                     modifier = Modifier.weight(0.9f)
                 )
 
@@ -530,7 +536,7 @@ fun VariantGroupEditorBottomSheet(
                         }
                     },
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
                         .background(BrandBlue)
                 ) {

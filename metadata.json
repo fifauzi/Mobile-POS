@@ -1,5 +1,5 @@
 {
-  "name": "Caffeinery POS",
+  "name": "Caffeinery POS by BDS Tech",
   "description": "Native Point of Sale (POS) system for coffee shops & retail with dynamic QRIS, Bluetooth thermal printer ESC/POS integration, variant picker, and sales analytics.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

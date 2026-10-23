@@ -17,15 +17,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -38,6 +41,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +75,8 @@ fun CartBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val cartSummary by viewModel.cartSummary.collectAsStateWithLifecycle()
     val customerName by viewModel.customerName.collectAsStateWithLifecycle()
+    val orderType by viewModel.orderType.collectAsStateWithLifecycle()
+    var isOpenBillModalOpen by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -137,6 +145,54 @@ fun CartBottomSheet(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
+
+            // Order Type Segmented Selector (Dine-in vs Takeaway)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SurfaceSubtle)
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Dine-in Pill
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (orderType == "DINE_IN") BrandBlue else Color.Transparent)
+                        .clickable { viewModel.setOrderType("DINE_IN") }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🍽️ Makan di Tempat",
+                        fontSize = 13.sp,
+                        fontWeight = if (orderType == "DINE_IN") FontWeight.Bold else FontWeight.Medium,
+                        color = if (orderType == "DINE_IN") Color.White else TextDarkPrimary
+                    )
+                }
+
+                // Takeaway Pill
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (orderType == "TAKEAWAY") BrandBlue else Color.Transparent)
+                        .clickable { viewModel.setOrderType("TAKEAWAY") }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🥡 Bungkus (Takeaway)",
+                        fontSize = 13.sp,
+                        fontWeight = if (orderType == "TAKEAWAY") FontWeight.Bold else FontWeight.Medium,
+                        color = if (orderType == "TAKEAWAY") Color.White else TextDarkPrimary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Customer Name / Table Input
             OutlinedTextField(
@@ -250,7 +306,12 @@ fun CartBottomSheet(
                 if (cartSummary.orderDiscountAmount > 0) {
                     SummaryLineClean("Diskon Pesanan", "-${CurrencyUtils.formatIdr(cartSummary.orderDiscountAmount)}", Color(0xFF16A34A))
                 }
-                SummaryLineClean("PB1 Pajak (${cartSummary.taxPercentage.toInt()}%)", CurrencyUtils.formatIdr(cartSummary.taxAmount))
+                if (cartSummary.serviceFeeAmount > 0) {
+                    SummaryLineClean("Biaya Layanan (${cartSummary.serviceFeePercentage.toInt()}%)", CurrencyUtils.formatIdr(cartSummary.serviceFeeAmount))
+                }
+                if (cartSummary.taxAmount > 0) {
+                    SummaryLineClean("PB1 Pajak (${cartSummary.taxPercentage.toInt()}%)", CurrencyUtils.formatIdr(cartSummary.taxAmount))
+                }
 
                 HorizontalDivider(thickness = 0.5.dp, color = BorderSubtle, modifier = Modifier.padding(vertical = 4.dp))
 
@@ -276,27 +337,68 @@ fun CartBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Checkout CTA
-            Button(
-                onClick = { viewModel.openCheckoutModal() },
-                enabled = cartSummary.items.isNotEmpty(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .testTag("proceed_checkout_btn"),
-                colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
-                shape = RoundedCornerShape(16.dp)
+            // Action Buttons: Open Bill and Proceed to Payment
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Lanjut Pembayaran • ${CurrencyUtils.formatIdr(cartSummary.grandTotal)}",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                OutlinedButton(
+                    onClick = { isOpenBillModalOpen = true },
+                    enabled = cartSummary.items.isNotEmpty(),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.5.dp, if (cartSummary.items.isNotEmpty()) BrandBlue else BorderSubtle),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                        .testTag("open_bill_hold_btn"),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandBlue)
+                ) {
+                    Icon(imageVector = Icons.Default.BookmarkAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Open Bill",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Button(
+                    onClick = { viewModel.openCheckoutModal() },
+                    enabled = cartSummary.items.isNotEmpty(),
+                    modifier = Modifier
+                        .weight(1.8f)
+                        .height(52.dp)
+                        .testTag("proceed_checkout_btn"),
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(
+                        text = "Bayar Sekarang",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (isOpenBillModalOpen) {
+        SaveOpenBillModal(
+            initialOrderType = orderType,
+            onDismiss = { isOpenBillModalOpen = false },
+            onSave = { cust, tbl, oType, notes ->
+                viewModel.saveCurrentCartAsOpenBill(
+                    customerName = cust,
+                    tableNumber = tbl,
+                    orderType = oType,
+                    notes = notes
+                )
+                isOpenBillModalOpen = false
+            }
+        )
     }
 }
 

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
@@ -793,6 +794,7 @@ fun CategoryManagementSheet(
                                         id = "cat_${slug}_${System.currentTimeMillis() % 10000}",
                                         name = newCategoryName.trim(),
                                         iconName = selectedIcon,
+                                        colorHex = "#0052CC",
                                         sortOrder = categories.size + 1
                                     )
                                     viewModel.addCategory(newCat)
@@ -885,7 +887,7 @@ fun CategoryManagementSheet(
                                 modifier = Modifier.size(32.dp)
                             ) {
                                 Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Default.Edit,
+                                    imageVector = Icons.Default.Edit,
                                     contentDescription = "Edit",
                                     tint = TextDarkSecondary,
                                     modifier = Modifier.size(16.dp)

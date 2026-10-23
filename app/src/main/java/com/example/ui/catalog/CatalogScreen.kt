@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.ReceiptLong
+import com.example.ui.cart.OpenBillsListModal
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -66,6 +68,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.model.CategoryEntity
 import com.example.data.local.model.ProductEntity
 import com.example.ui.PosViewModel
+import com.example.ui.components.CashierShiftSwitcherModal
 import com.example.ui.components.CurrencyUtils
 import com.example.ui.components.ProductFallbackAvatar
 import com.example.ui.theme.BorderSubtle
@@ -95,9 +98,16 @@ fun CatalogScreen(
     val cartSummary by viewModel.cartSummary.collectAsStateWithLifecycle()
     val cartItems by viewModel.cartItems.collectAsStateWithLifecycle()
     val selectedProductForVariant by viewModel.selectedProductForVariant.collectAsStateWithLifecycle()
+    val variantGroups by viewModel.variantGroups.collectAsStateWithLifecycle()
+    val activeOpenBills by viewModel.activeOpenBills.collectAsStateWithLifecycle()
+    val activeEmployee by viewModel.activeEmployee.collectAsStateWithLifecycle()
+    val activeShift by viewModel.activeShift.collectAsStateWithLifecycle()
+    val employees by viewModel.employees.collectAsStateWithLifecycle()
 
     var isCategoryDropdownOpen by remember { mutableStateOf(false) }
     var isManualInputSheetOpen by remember { mutableStateOf(false) }
+    var isOpenBillsModalOpen by remember { mutableStateOf(false) }
+    var isCashierShiftModalOpen by remember { mutableStateOf(false) }
 
     // Map product ID to current quantity in cart
     val cartQtyMap = remember(cartItems) {
@@ -118,60 +128,133 @@ fun CatalogScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // Header (Kasir, Powered by Caffeinery, + Input Manual) - image_53be3fd4.png style
+            // Header (Kasir, BDS Coffee Company, Shift info, + Stacked Open Bill & Input Manual)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = "Kasir",
-                        fontSize = 28.sp,
+                        fontSize = 26.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = TextDarkPrimary
                     )
                     Text(
-                        text = "Powered by Caffeinery",
+                        text = "BDS Coffee Company",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF0099FF),
                         modifier = Modifier.padding(top = 1.dp)
                     )
-                }
-
-                // "+ Input Manual" action button
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable { isManualInputSheetOpen = true }
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                        .testTag("input_manual_button"),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
+                    Spacer(modifier = Modifier.height(4.dp))
+                    // Active Cashier & Shift interactive badge pill
+                    Row(
                         modifier = Modifier
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .background(BrandBlue),
-                        contentAlignment = Alignment.Center
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(BrandBlueLight.copy(alpha = 0.5f))
+                            .border(1.dp, BrandBlue.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                            .clickable { isCashierShiftModalOpen = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .testTag("cashier_shift_pill_btn"),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF22C55E))
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "${activeEmployee.name} • ${activeShift.split(" ").firstOrNull() ?: "Shift"}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandBlue,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
                         Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Switch Cashier",
+                            tint = BrandBlue,
+                            modifier = Modifier.size(14.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Input Manual",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandBlue
-                    )
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                // Vertically stacked Open Bill & Input Manual controls with safe padding
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Open Bills Counter Badge Button (Stacked Top)
+                    if (activeOpenBills.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFFFEF3C7))
+                                .border(1.dp, Color(0xFFF59E0B), RoundedCornerShape(20.dp))
+                                .clickable { isOpenBillsModalOpen = true }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .testTag("open_bills_badge_btn"),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ReceiptLong,
+                                contentDescription = null,
+                                tint = Color(0xFFB45309),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Open Bill (${activeOpenBills.size})",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFB45309)
+                            )
+                        }
+                    }
+
+                    // "+ Input Manual" action button (Stacked Bottom)
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(BrandBlueLight.copy(alpha = 0.5f))
+                            .border(1.dp, BrandBlue.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                            .clickable { isManualInputSheetOpen = true }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                            .testTag("input_manual_button"),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(BrandBlue),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "Input Manual",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandBlue
+                        )
+                    }
                 }
             }
 
@@ -400,6 +483,7 @@ fun CatalogScreen(
     selectedProductForVariant?.let { product ->
         VariantPickerBottomSheet(
             product = product,
+            globalVariantGroups = variantGroups,
             onDismiss = { viewModel.closeVariantPicker() },
             onAddToCart = { prod, variants, qty, discType, discVal, notes ->
                 viewModel.addToCart(prod, variants, qty, discType, discVal, notes)
@@ -414,6 +498,35 @@ fun CatalogScreen(
             onDismiss = { isManualInputSheetOpen = false },
             onAddToCart = { prod, qty, notes ->
                 viewModel.addToCart(prod, emptyMap(), qty, notes = notes)
+            }
+        )
+    }
+
+    // Active Open Bills Modal List
+    if (isOpenBillsModalOpen) {
+        OpenBillsListModal(
+            openBills = activeOpenBills,
+            onDismiss = { isOpenBillsModalOpen = false },
+            onRecallBill = { bill ->
+                viewModel.recallOpenBill(bill)
+                isOpenBillsModalOpen = false
+            },
+            onDeleteBill = { billId ->
+                viewModel.deleteOpenBill(billId)
+            }
+        )
+    }
+
+    // Cashier & Shift Switcher Modal
+    if (isCashierShiftModalOpen) {
+        CashierShiftSwitcherModal(
+            employees = employees,
+            currentEmployee = activeEmployee,
+            currentShift = activeShift,
+            onDismiss = { isCashierShiftModalOpen = false },
+            onConfirmSwitch = { emp, shift ->
+                viewModel.setActiveEmployee(emp)
+                viewModel.setActiveShift(shift)
             }
         )
     }

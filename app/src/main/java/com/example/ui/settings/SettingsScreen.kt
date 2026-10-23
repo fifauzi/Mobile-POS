@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Receipt
@@ -244,6 +245,18 @@ fun SettingsScreen(
                         subtitle = "Simpan atau bagikan laporan CSV transaksi.",
                         onClick = { viewModel.exportSalesCsv(context) }
                     )
+
+                    HorizontalDivider(thickness = 0.5.dp, color = BorderSubtle, modifier = Modifier.padding(start = 72.dp))
+
+                    // Item 10: Kirim Laporan ke Email
+                    SettingsItemRow(
+                        icon = Icons.Default.Email,
+                        iconBg = PastelBlueBg,
+                        iconTint = PastelBlueIcon,
+                        title = "Kirim Laporan ke Email",
+                        subtitle = "Kirim spreadsheet penjualan ke bdscoffeecompany@gmail.com.",
+                        onClick = { viewModel.sendSalesReportEmail(context) }
+                    )
                 }
             }
 
@@ -264,7 +277,7 @@ fun SettingsScreen(
 
             // App version info
             Text(
-                text = "Caffeinery POS v2.4.0 • Yokke Powered Engine",
+                text = "Caffeinery POS by BDS Tech v3.0.0 • Powered by BDS Tech",
                 fontSize = 12.sp,
                 color = Color(0xFF94A3B8),
                 modifier = Modifier.align(Alignment.CenterHorizontally)

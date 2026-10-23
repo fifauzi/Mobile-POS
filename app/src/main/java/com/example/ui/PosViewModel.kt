@@ -9,7 +9,10 @@ import com.example.data.local.model.CategoryEntity
 import com.example.data.local.model.OrderEntity
 import com.example.data.local.model.OrderItemEntity
 import com.example.data.local.model.ProductEntity
+import com.example.data.local.model.OpenBillEntity
 import com.example.data.repository.PosRepository
+import org.json.JSONArray
+import org.json.JSONObject
 import com.example.domain.model.CartItem
 import com.example.domain.model.DiscountType
 import com.example.domain.model.AdditionalFeesConfig
@@ -44,6 +47,8 @@ data class CartSummary(
     val orderDiscountType: DiscountType = DiscountType.NONE,
     val orderDiscountValue: Double = 0.0,
     val orderDiscountAmount: Double = 0.0,
+    val serviceFeePercentage: Double = 0.0,
+    val serviceFeeAmount: Double = 0.0,
     val taxPercentage: Double = 10.0, // 10% PB1
     val taxAmount: Double = 0.0,
     val grandTotal: Double = 0.0,
@@ -60,7 +65,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Active Navigation Tab
-    private val _currentTab = MutableStateFlow<PosTab>(PosTab.BERANDA)
+    private val _currentTab = MutableStateFlow<PosTab>(PosTab.DASHBOARD)
     val currentTab: StateFlow<PosTab> = _currentTab.asStateFlow()
 
     fun setCurrentTab(tab: PosTab) {
@@ -87,6 +92,9 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val variantGroups: StateFlow<List<com.example.data.local.model.VariantGroupEntity>> = repository.variantGroups
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val activeOpenBills: StateFlow<List<OpenBillEntity>> = repository.activeOpenBills
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun addVariantGroup(group: com.example.data.local.model.VariantGroupEntity) {
@@ -138,9 +146,6 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     private val _orderDiscountValue = MutableStateFlow(0.0)
     val orderDiscountValue: StateFlow<Double> = _orderDiscountValue.asStateFlow()
 
-    private val _taxPercentage = MutableStateFlow(10.0)
-    val taxPercentage: StateFlow<Double> = _taxPercentage.asStateFlow()
-
     private val _customerName = MutableStateFlow("Guest")
     val customerName: StateFlow<String> = _customerName.asStateFlow()
 
@@ -148,12 +153,91 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         _customerName.value = name
     }
 
+    private val _orderType = MutableStateFlow("DINE_IN") // "DINE_IN" or "TAKEAWAY"
+    val orderType: StateFlow<String> = _orderType.asStateFlow()
+
+    fun setOrderType(type: String) {
+        _orderType.value = type
+    }
+
+    // Business Settings Management
+    private val _outletInfo = MutableStateFlow(OutletInfo())
+    val outletInfo: StateFlow<OutletInfo> = _outletInfo.asStateFlow()
+
+    fun updateOutletInfo(info: OutletInfo) {
+        _outletInfo.value = info
+    }
+
+    private val _employees = MutableStateFlow(
+        listOf(
+            EmployeeItem(name = "Rian Pratama", role = "Manager / Owner", pin = "8899"),
+            EmployeeItem(name = "Maya Sari", role = "Head Barista", pin = "1234"),
+            EmployeeItem(name = "Budi Santoso", role = "Kasir", pin = "2024"),
+            EmployeeItem(name = "Dimas Anggara", role = "Barista", pin = "1122")
+        )
+    )
+    val employees: StateFlow<List<EmployeeItem>> = _employees.asStateFlow()
+
+    // Active Logged-in Cashier & Shift Tracking
+    private val _activeEmployee = MutableStateFlow(
+        EmployeeItem(name = "Rian Pratama", role = "Manager / Owner", shift = "Shift 1 (Pagi)", pin = "8899")
+    )
+    val activeEmployee: StateFlow<EmployeeItem> = _activeEmployee.asStateFlow()
+
+    fun setActiveEmployee(emp: EmployeeItem) {
+        _activeEmployee.value = emp
+    }
+
+    private val _activeShift = MutableStateFlow("Shift 1 (08:00 - 16:00)")
+    val activeShift: StateFlow<String> = _activeShift.asStateFlow()
+
+    fun setActiveShift(shift: String) {
+        _activeShift.value = shift
+    }
+
+    fun addEmployee(name: String, role: String, pin: String) {
+        val newItem = EmployeeItem(name = name, role = role, pin = pin)
+        _employees.value = _employees.value + newItem
+    }
+
+    fun removeEmployee(id: String) {
+        _employees.value = _employees.value.filter { it.id != id }
+    }
+
+    private val _orderMethods = MutableStateFlow(OrderMethodsConfig())
+    val orderMethods: StateFlow<OrderMethodsConfig> = _orderMethods.asStateFlow()
+
+    fun updateOrderMethods(config: OrderMethodsConfig) {
+        _orderMethods.value = config
+    }
+
+    private val _paymentGateways = MutableStateFlow(PaymentGatewaysConfig())
+    val paymentGateways: StateFlow<PaymentGatewaysConfig> = _paymentGateways.asStateFlow()
+
+    fun updatePaymentGateways(config: PaymentGatewaysConfig) {
+        _paymentGateways.value = config
+    }
+
+    private val _additionalFees = MutableStateFlow(AdditionalFeesConfig())
+    val additionalFees: StateFlow<AdditionalFeesConfig> = _additionalFees.asStateFlow()
+
+    fun updateAdditionalFees(config: AdditionalFeesConfig) {
+        _additionalFees.value = config
+    }
+
+    private val _receiptCustomizer = MutableStateFlow(ReceiptCustomizerConfig())
+    val receiptCustomizer: StateFlow<ReceiptCustomizerConfig> = _receiptCustomizer.asStateFlow()
+
+    fun updateReceiptCustomizer(config: ReceiptCustomizerConfig) {
+        _receiptCustomizer.value = config
+    }
+
     val cartSummary: StateFlow<CartSummary> = combine(
         _cartItems,
         _orderDiscountType,
         _orderDiscountValue,
-        _taxPercentage
-    ) { items, discType, discVal, taxPct ->
+        _additionalFees
+    ) { items, discType, discVal, feesConfig ->
         val subtotal = items.sumOf { it.lineTotal }
         val itemDiscTotal = items.sumOf { it.totalDiscountAmount }
         val totalCount = items.sumOf { it.quantity }
@@ -164,9 +248,19 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             DiscountType.NONE -> 0.0
         }
 
-        val taxableAmount = (subtotal - orderDiscAmount).coerceAtLeast(0.0)
-        val taxAmount = (taxableAmount * (taxPct / 100.0)).coerceAtLeast(0.0)
-        val grandTotal = (taxableAmount + taxAmount).coerceAtLeast(0.0)
+        val afterDiscount = (subtotal - orderDiscAmount).coerceAtLeast(0.0)
+
+        val serviceFeePct = if (feesConfig.isServiceFeeEnabled) feesConfig.serviceFeePercentage else 0.0
+        val serviceFeeAmount = (afterDiscount * (serviceFeePct / 100.0)).coerceAtLeast(0.0)
+
+        val taxableBase = afterDiscount + serviceFeeAmount
+        val taxPct = if (feesConfig.isTaxEnabled) feesConfig.taxPercentage else 0.0
+        val taxAmount = (taxableBase * (taxPct / 100.0)).coerceAtLeast(0.0)
+
+        var total = afterDiscount + serviceFeeAmount + taxAmount
+        if (feesConfig.isRoundingEnabled) {
+            total = kotlin.math.round(total / 100.0) * 100.0
+        }
 
         CartSummary(
             items = items,
@@ -175,9 +269,11 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             orderDiscountType = discType,
             orderDiscountValue = discVal,
             orderDiscountAmount = orderDiscAmount,
+            serviceFeePercentage = serviceFeePct,
+            serviceFeeAmount = serviceFeeAmount,
             taxPercentage = taxPct,
             taxAmount = taxAmount,
-            grandTotal = grandTotal,
+            grandTotal = total,
             totalItemCount = totalCount
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CartSummary())
@@ -306,6 +402,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         _orderDiscountType.value = DiscountType.NONE
         _orderDiscountValue.value = 0.0
         _customerName.value = "Guest"
+        _orderType.value = "DINE_IN"
     }
 
     // Process Sale Checkout
@@ -326,10 +423,13 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             invoiceNumber = invoice,
             timestamp = now,
             customerName = _customerName.value.ifBlank { "Walk-in Guest" },
+            orderType = _orderType.value,
             subtotal = summary.subtotal,
             itemDiscountTotal = summary.itemDiscountTotal,
             orderDiscountPercentage = if (summary.orderDiscountType == DiscountType.PERCENTAGE) summary.orderDiscountValue else 0.0,
             orderDiscountAmount = summary.orderDiscountAmount,
+            serviceFeePercentage = summary.serviceFeePercentage,
+            serviceFeeAmount = summary.serviceFeeAmount,
             taxPercentage = summary.taxPercentage,
             taxAmount = summary.taxAmount,
             grandTotal = summary.grandTotal,
@@ -337,6 +437,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             tenderedAmount = tenderedAmount,
             changeAmount = change,
             paymentStatus = "PAID",
+            cashierName = _activeEmployee.value.name,
+            shiftName = _activeShift.value,
             notes = notes
         )
 
@@ -378,7 +480,16 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isPrintingAnimation.value = true
             _printerStatusMessage.value = "Transmitting ESC/POS bytes..."
-            val bytes = EscPosPrinterService.buildReceiptBytes(order, items)
+            val info = _outletInfo.value
+            val rc = _receiptCustomizer.value
+            val bytes = EscPosPrinterService.buildReceiptBytes(
+                order = order,
+                items = items,
+                storeName = info.name,
+                storeAddress = "${info.address} (${info.branch})",
+                storePhone = "Telp: ${info.phone}",
+                footerMessage = rc.footerNote
+            )
             val result = EscPosPrinterService.printBytes(_selectedPrinterAddress.value, bytes)
             result.onSuccess { msg ->
                 _printerStatusMessage.value = msg
@@ -445,59 +556,192 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Business Settings Management
-    private val _outletInfo = MutableStateFlow(OutletInfo())
-    val outletInfo: StateFlow<OutletInfo> = _outletInfo.asStateFlow()
+    // 📧 Email Report Dispatcher
+    fun sendSalesReportEmail(
+        context: Context,
+        targetEmail: String = "bdscoffeecompany@gmail.com"
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val allOrders = orders.value
+            val allItems = allOrderItems.value.groupBy { it.orderInvoiceNumber }
+            val csv = CsvExportService.generateSalesCsv(allOrders, allItems)
 
-    fun updateOutletInfo(info: OutletInfo) {
-        _outletInfo.value = info
+            val totalRevenue = allOrders.sumOf { it.grandTotal }
+            val totalHpp = allOrderItems.value.sumOf { it.costPrice * it.quantity }
+            val totalProfit = (totalRevenue - totalHpp).coerceAtLeast(0.0)
+
+            val summaryStats = """
+                • Total Transaksi: ${allOrders.size} pesanan
+                • Total Omzet (Revenue): ${com.example.ui.components.CurrencyUtils.formatIdr(totalRevenue)}
+                • Estimasi Laba Bersih: ${com.example.ui.components.CurrencyUtils.formatIdr(totalProfit)}
+                • Tanggal Laporan: ${SimpleDateFormat("EEEE, dd MMMM yyyy", Locale("id", "ID")).format(Date())}
+            """.trimIndent()
+
+            launch(Dispatchers.Main) {
+                CsvExportService.sendCsvReportViaEmail(
+                    context = context,
+                    csvContent = csv,
+                    targetEmail = targetEmail,
+                    outletName = _outletInfo.value.name,
+                    summaryStats = summaryStats
+                )
+            }
+        }
     }
 
-    private val _employees = MutableStateFlow(
-        listOf(
-            EmployeeItem(name = "Rian Pratama", role = "Manager / Owner", pin = "8899"),
-            EmployeeItem(name = "Maya Sari", role = "Head Barista", pin = "1234"),
-            EmployeeItem(name = "Budi Santoso", role = "Kasir", pin = "2024"),
-            EmployeeItem(name = "Dimas Anggara", role = "Barista", pin = "1122")
+    // 📝 Open Bill / Hold Order Actions
+    fun saveCurrentCartAsOpenBill(
+        customerName: String,
+        tableNumber: String,
+        orderType: String,
+        notes: String = ""
+    ) {
+        val summary = cartSummary.value
+        val items = summary.items
+        if (items.isEmpty()) return
+
+        val now = System.currentTimeMillis()
+        val billNum = "OB-" + SimpleDateFormat("HHmmss", Locale.US).format(Date(now))
+
+        val jsonArray = JSONArray()
+        for (item in items) {
+            val obj = JSONObject().apply {
+                put("productId", item.product.id)
+                put("productName", item.product.name)
+                put("productPrice", item.product.basePrice)
+                put("productCost", item.product.costPrice)
+                put("productCategory", item.product.categoryId)
+                put("productUnit", item.product.unit)
+                put("quantity", item.quantity)
+                put("discountType", item.discountType.name)
+                put("discountValue", item.discountValue)
+                put("notes", item.notes)
+
+                val variantsObj = JSONObject()
+                for ((groupName, options) in item.selectedVariants) {
+                    val optsArray = JSONArray()
+                    for (opt in options) {
+                        val o = JSONObject()
+                        o.put("name", opt.name)
+                        o.put("price", opt.priceAdjustment)
+                        optsArray.put(o)
+                    }
+                    variantsObj.put(groupName, optsArray)
+                }
+                put("selectedVariants", variantsObj)
+            }
+            jsonArray.put(obj)
+        }
+
+        val openBill = OpenBillEntity(
+            billNumber = billNum,
+            customerName = customerName.ifBlank { "Tamu" },
+            tableNumber = tableNumber,
+            orderType = orderType,
+            itemsJson = jsonArray.toString(),
+            totalItemCount = summary.totalItemCount,
+            subtotal = summary.subtotal,
+            taxAmount = summary.taxAmount,
+            serviceFeeAmount = summary.serviceFeeAmount,
+            grandTotal = summary.grandTotal,
+            notes = notes,
+            cashierName = _activeEmployee.value.name,
+            createdAt = now,
+            status = "ACTIVE"
         )
-    )
-    val employees: StateFlow<List<EmployeeItem>> = _employees.asStateFlow()
 
-    fun addEmployee(name: String, role: String, pin: String) {
-        val newItem = EmployeeItem(name = name, role = role, pin = pin)
-        _employees.value = _employees.value + newItem
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveOpenBill(openBill)
+            launch(Dispatchers.Main) {
+                clearCart()
+                closeCartSheet()
+            }
+        }
     }
 
-    fun removeEmployee(id: String) {
-        _employees.value = _employees.value.filter { it.id != id }
+    fun recallOpenBill(bill: OpenBillEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val restoredItems = mutableListOf<CartItem>()
+            try {
+                val array = JSONArray(bill.itemsJson)
+                val allProds = products.value.associateBy { it.id }
+
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val pId = obj.optLong("productId", 0L)
+                    val pName = obj.optString("productName", "Produk")
+                    val pPrice = obj.optDouble("productPrice", 0.0)
+                    val pCost = obj.optDouble("productCost", 0.0)
+                    val pCat = obj.optString("productCategory", "coffee")
+                    val pUnit = obj.optString("productUnit", "cup")
+                    val qty = obj.optInt("quantity", 1)
+                    val dTypeStr = obj.optString("discountType", "NONE")
+                    val dVal = obj.optDouble("discountValue", 0.0)
+                    val notes = obj.optString("notes", "")
+
+                    val product = allProds[pId] ?: ProductEntity(
+                        id = pId,
+                        sku = obj.optString("sku", "ITEM-$pId"),
+                        name = pName,
+                        categoryId = pCat,
+                        basePrice = pPrice,
+                        costPrice = pCost,
+                        stockQuantity = 999,
+                        unit = pUnit
+                    )
+
+                    val variantsMap = mutableMapOf<String, List<VariantOption>>()
+                    val vObj = obj.optJSONObject("selectedVariants")
+                    if (vObj != null) {
+                        val keys = vObj.keys()
+                        while (keys.hasNext()) {
+                            val k = keys.next()
+                            val oArr = vObj.optJSONArray(k)
+                            val oList = mutableListOf<VariantOption>()
+                            if (oArr != null) {
+                                for (j in 0 until oArr.length()) {
+                                    val itemObj = oArr.getJSONObject(j)
+                                    oList.add(
+                                        VariantOption(
+                                            name = itemObj.optString("name", ""),
+                                            priceAdjustment = itemObj.optDouble("price", 0.0)
+                                        )
+                                    )
+                                }
+                            }
+                            variantsMap[k] = oList
+                        }
+                    }
+
+                    restoredItems.add(
+                        CartItem(
+                            product = product,
+                            selectedVariants = variantsMap,
+                            quantity = qty,
+                            discountType = try { DiscountType.valueOf(dTypeStr) } catch (_: Exception) { DiscountType.NONE },
+                            discountValue = dVal,
+                            notes = notes
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            repository.deleteOpenBill(bill.id)
+
+            launch(Dispatchers.Main) {
+                _cartItems.value = restoredItems
+                _orderType.value = bill.orderType
+                _customerName.value = if (bill.tableNumber.isNotBlank()) "${bill.customerName} (${bill.tableNumber})" else bill.customerName
+                openCartSheet()
+            }
+        }
     }
 
-    private val _orderMethods = MutableStateFlow(OrderMethodsConfig())
-    val orderMethods: StateFlow<OrderMethodsConfig> = _orderMethods.asStateFlow()
-
-    fun updateOrderMethods(config: OrderMethodsConfig) {
-        _orderMethods.value = config
-    }
-
-    private val _paymentGateways = MutableStateFlow(PaymentGatewaysConfig())
-    val paymentGateways: StateFlow<PaymentGatewaysConfig> = _paymentGateways.asStateFlow()
-
-    fun updatePaymentGateways(config: PaymentGatewaysConfig) {
-        _paymentGateways.value = config
-    }
-
-    private val _additionalFees = MutableStateFlow(AdditionalFeesConfig())
-    val additionalFees: StateFlow<AdditionalFeesConfig> = _additionalFees.asStateFlow()
-
-    fun updateAdditionalFees(config: AdditionalFeesConfig) {
-        _additionalFees.value = config
-        _taxPercentage.value = if (config.isTaxEnabled) config.taxPercentage else 0.0
-    }
-
-    private val _receiptCustomizer = MutableStateFlow(ReceiptCustomizerConfig())
-    val receiptCustomizer: StateFlow<ReceiptCustomizerConfig> = _receiptCustomizer.asStateFlow()
-
-    fun updateReceiptCustomizer(config: ReceiptCustomizerConfig) {
-        _receiptCustomizer.value = config
+    fun deleteOpenBill(billId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteOpenBill(billId)
+        }
     }
 }

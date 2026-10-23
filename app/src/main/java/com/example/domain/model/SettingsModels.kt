@@ -3,18 +3,19 @@ package com.example.domain.model
 import java.util.UUID
 
 data class OutletInfo(
-    val name: String = "Caffeinery Specialty Coffee",
-    val branch: String = "Senopati Flagship",
+    val name: String = "BDS Coffee Company",
+    val branch: String = "Senopati Roastery",
     val address: String = "Jl. Senopati No. 42, Kebayoran Baru, Jakarta Selatan",
     val phone: String = "+62 812-9988-7766",
     val taxId: String = "01.234.567.8-012.000",
-    val instagram: String = "@caffeinery.pos"
+    val instagram: String = "@bdscoffeecompany"
 )
 
 data class EmployeeItem(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val role: String, // Manager, Kasir, Barista
+    val shift: String = "Shift 1 (Pagi)",
     val pin: String = "1234",
     val isActive: Boolean = true
 )
@@ -47,7 +48,7 @@ data class AdditionalFeesConfig(
 data class ReceiptCustomizerConfig(
     val paperSize: String = "58mm", // 58mm or 80mm
     val showLogo: Boolean = true,
-    val headerNote: String = "CAFFEINERY SPECIALTY COFFEE",
-    val footerNote: String = "Terima kasih atas kunjungan Anda!",
+    val headerNote: String = "BDS COFFEE COMPANY",
+    val footerNote: String = "Terima kasih atas kunjungan Anda ke BDS Coffee Company! • Caffeinery POS by BDS Tech",
     val printCopies: Int = 1
 )

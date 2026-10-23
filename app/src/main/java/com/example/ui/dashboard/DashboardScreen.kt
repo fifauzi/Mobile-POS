@@ -37,7 +37,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.ui.components.CashierShiftSwitcherModal
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -94,6 +97,11 @@ fun DashboardScreen(
     val orders by viewModel.orders.collectAsStateWithLifecycle()
     val products by viewModel.products.collectAsStateWithLifecycle()
     val allOrderItems by viewModel.allOrderItems.collectAsStateWithLifecycle()
+    val activeEmployee by viewModel.activeEmployee.collectAsStateWithLifecycle()
+    val activeShift by viewModel.activeShift.collectAsStateWithLifecycle()
+    val employees by viewModel.employees.collectAsStateWithLifecycle()
+
+    var isShiftModalOpen by remember { mutableStateOf(false) }
 
     val totalRevenue = remember(orders) {
         orders.sumOf { it.grandTotal }
@@ -146,27 +154,29 @@ fun DashboardScreen(
             ) {
                 Column {
                     Text(
-                        text = "Caffeinery POS",
+                        text = "BDS Coffee Company",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = BrandBlue,
                         letterSpacing = 0.5.sp
                     )
                     Text(
-                        text = "Dashboard Beranda",
+                        text = "Dashboard",
                         fontSize = 26.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = TextDarkPrimary
                     )
                 }
 
-                // Active Shift Status Pill
+                // Active Shift Status Pill (Clickable to switch cashier & shift)
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color(0xFFE8F8F0))
                         .border(1.dp, Color(0xFF86EFAC), RoundedCornerShape(20.dp))
+                        .clickable { isShiftModalOpen = true }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .testTag("dashboard_shift_pill_btn")
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
@@ -177,7 +187,7 @@ fun DashboardScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Shift Aktif",
+                            text = "${activeEmployee.name} • ${activeShift.split(" ").firstOrNull() ?: "Shift"} ⌵",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF15803D)
@@ -491,6 +501,19 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(100.dp))
         }
+    }
+
+    if (isShiftModalOpen) {
+        CashierShiftSwitcherModal(
+            employees = employees,
+            currentEmployee = activeEmployee,
+            currentShift = activeShift,
+            onDismiss = { isShiftModalOpen = false },
+            onConfirmSwitch = { emp, shift ->
+                viewModel.setActiveEmployee(emp)
+                viewModel.setActiveShift(shift)
+            }
+        )
     }
 }
 

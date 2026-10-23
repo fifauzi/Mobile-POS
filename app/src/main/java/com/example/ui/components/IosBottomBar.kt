@@ -59,11 +59,15 @@ enum class PosTab(
     val unselectedIcon: ImageVector,
     val tag: String
 ) {
-    BERANDA("Beranda", Icons.Filled.Home, Icons.Outlined.Home, "tab_beranda"),
+    DASHBOARD("Dashboard", Icons.Filled.Home, Icons.Outlined.Home, "tab_dashboard"),
     KASIR("Kasir", Icons.Filled.Storefront, Icons.Outlined.Storefront, "tab_kasir"),
     KATALOG("Katalog", Icons.Filled.Inventory2, Icons.Outlined.Inventory2, "tab_katalog"),
     TRANSAKSI("Transaksi", Icons.Filled.SwapHoriz, Icons.Outlined.SwapHoriz, "tab_transaksi"),
-    SETTINGS("Settings", Icons.Filled.Settings, Icons.Outlined.Settings, "tab_settings")
+    SETTINGS("Settings", Icons.Filled.Settings, Icons.Outlined.Settings, "tab_settings");
+
+    companion object {
+        val BERANDA: PosTab get() = DASHBOARD
+    }
 }
 
 /**

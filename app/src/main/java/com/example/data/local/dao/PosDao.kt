@@ -12,6 +12,7 @@ import com.example.data.local.model.OrderEntity
 import com.example.data.local.model.OrderItemEntity
 import com.example.data.local.model.ProductEntity
 import com.example.data.local.model.VariantGroupEntity
+import com.example.data.local.model.OpenBillEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -116,4 +117,20 @@ interface PosDao {
 
     @Delete
     suspend fun deleteVariantGroup(group: VariantGroupEntity)
+
+    // Open Bills (Hold Orders)
+    @Query("SELECT * FROM open_bills WHERE status = 'ACTIVE' ORDER BY createdAt DESC")
+    fun getActiveOpenBills(): Flow<List<OpenBillEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOpenBill(openBill: OpenBillEntity)
+
+    @Update
+    suspend fun updateOpenBill(openBill: OpenBillEntity)
+
+    @Delete
+    suspend fun deleteOpenBill(openBill: OpenBillEntity)
+
+    @Query("DELETE FROM open_bills WHERE id = :id")
+    suspend fun deleteOpenBillById(id: String)
 }

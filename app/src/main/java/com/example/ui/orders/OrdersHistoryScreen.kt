@@ -409,9 +409,10 @@ fun DateGroupAccordionCard(
 
                     // Sub-Cards for each transaction
                     orders.forEachIndexed { index, order ->
-                        val timeStr = SimpleDateFormat("HH:mm 'WIB'", Locale.getDefault()).format(Date(order.timestamp))
+                        val timeStr = SimpleDateFormat("HH:mm:ss 'WIB'", Locale("id", "ID")).format(Date(order.timestamp))
                         val items = itemsGrouped[order.invoiceNumber] ?: emptyList()
                         val itemCount = items.sumOf { it.quantity }
+                        val isDineIn = order.orderType != "TAKEAWAY"
 
                         val variantsSummary = items.mapNotNull {
                             if (it.variantSummary.isNotBlank() && it.variantSummary != "Standard") "${it.productName} (${it.variantSummary})" else null
@@ -432,12 +433,31 @@ fun DateGroupAccordionCard(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = "Transaksi #${index + 1} (${order.paymentMethod})",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = TextDarkPrimary
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    ) {
+                                        Text(
+                                            text = "Transaksi #${index + 1} (${order.paymentMethod})",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = TextDarkPrimary
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(if (isDineIn) BrandBlueLight else Color(0xFFFEF3C7))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isDineIn) "🍽️ Dine-in" else "🥡 Bungkus",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isDineIn) BrandBlue else Color(0xFFD97706)
+                                            )
+                                        }
+                                    }
                                     Text(
                                         text = CurrencyUtils.formatIdr(order.grandTotal),
                                         fontSize = 14.sp,
@@ -465,8 +485,9 @@ fun DateGroupAccordionCard(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = timeStr,
+                                        text = "Jam Bayar: $timeStr",
                                         fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
                                         color = TextDarkMuted
                                     )
                                     Row(verticalAlignment = Alignment.CenterVertically) {

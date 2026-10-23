@@ -70,6 +70,7 @@ import com.example.ui.theme.TextDarkSecondary
 @Composable
 fun VariantPickerBottomSheet(
     product: ProductEntity,
+    globalVariantGroups: List<com.example.data.local.model.VariantGroupEntity> = emptyList(),
     onDismiss: () -> Unit,
     onAddToCart: (
         product: ProductEntity,
@@ -81,17 +82,32 @@ fun VariantPickerBottomSheet(
     ) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val variantGroups = remember(product.variantsJson) {
-        VariantParser.parseVariantsJson(product.variantsJson)
+    val variantGroups = remember(product.variantsJson, globalVariantGroups) {
+        val parsed = VariantParser.parseVariantsJson(product.variantsJson)
+        if (parsed.isNotEmpty()) {
+            parsed
+        } else {
+            globalVariantGroups.filter { g ->
+                g.applicableCategoryIds == "all" ||
+                        g.applicableCategoryIds.split(",").map { it.trim() }.contains(product.categoryId)
+            }.map { entity ->
+                val opts = parseVariantOptionsFromJson(entity.optionsJson)
+                VariantGroup(
+                    name = entity.name,
+                    isMultiSelect = entity.isMultiSelect,
+                    options = opts
+                )
+            }
+        }
     }
 
-    val selectedOptions = remember {
-        mutableStateMapOf<String, MutableList<VariantOption>>().apply {
+    val selectedOptions = remember(variantGroups) {
+        mutableStateMapOf<String, List<VariantOption>>().apply {
             variantGroups.forEach { group ->
                 if (!group.isMultiSelect && group.options.isNotEmpty()) {
-                    this[group.name] = mutableListOf(group.options.first())
+                    this[group.name] = listOf(group.options.first())
                 } else {
-                    this[group.name] = mutableListOf()
+                    this[group.name] = emptyList()
                 }
             }
         }
@@ -243,16 +259,16 @@ fun VariantPickerBottomSheet(
                                     shape = RoundedCornerShape(14.dp)
                                 )
                                 .clickable {
-                                    val list = selectedOptions.getOrPut(group.name) { mutableListOf() }
+                                    val current = selectedOptions[group.name] ?: emptyList()
                                     if (group.isMultiSelect) {
-                                        if (isSelected) {
-                                            list.removeAll { it.name == option.name }
+                                        val updated = if (isSelected) {
+                                            current.filter { it.name != option.name }
                                         } else {
-                                            list.add(option)
+                                            current + option
                                         }
+                                        selectedOptions[group.name] = updated
                                     } else {
-                                        list.clear()
-                                        list.add(option)
+                                        selectedOptions[group.name] = listOf(option)
                                     }
                                 }
                                 .padding(horizontal = 14.dp, vertical = 9.dp)
@@ -431,4 +447,22 @@ fun VariantPickerBottomSheet(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+}
+
+private fun parseVariantOptionsFromJson(json: String): List<VariantOption> {
+    if (json.isBlank()) return emptyList()
+    val list = mutableListOf<VariantOption>()
+    try {
+        val arr = org.json.JSONArray(json)
+        for (i in 0 until arr.length()) {
+            val obj = arr.getJSONObject(i)
+            list.add(
+                VariantOption(
+                    name = obj.optString("name", ""),
+                    priceAdjustment = obj.optDouble("price", 0.0)
+                )
+            )
+        }
+    } catch (_: Exception) {}
+    return list
 }
