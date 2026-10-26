@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -59,10 +60,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.service.QrisPayloadGenerator
 import com.example.ui.PosViewModel
@@ -113,19 +116,39 @@ fun CheckoutModal(
         }
     }
 
-    // Dynamic QRIS states
+    // Official Store QRIS & Payment Gateway states
+    val paymentGateways by viewModel.paymentGateways.collectAsStateWithLifecycle()
+    val merchantName = paymentGateways.qrisMerchantName.ifBlank { "BDS COFFEE CO" }
+    val qrisNmid = paymentGateways.qrisNmid.ifBlank { "ID1024365195063" }
+    val qrisTerminal = paymentGateways.qrisTerminal.ifBlank { "A01" }
+
+    var isStaticQrisMode by remember { mutableStateOf(false) }
+
     val tempInvoiceNumber = remember {
         "INV-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
     }
-    val qrisPayload = remember(grandTotal) {
+    val dynamicPayload = remember(grandTotal, merchantName, qrisNmid, qrisTerminal) {
         QrisPayloadGenerator.generateDynamicQris(
             invoiceNumber = tempInvoiceNumber,
             amount = grandTotal,
-            merchantName = "CAFFEINERY COFFEE",
+            merchantName = merchantName,
+            nmid = qrisNmid,
+            terminalId = qrisTerminal,
             merchantCity = "JAKARTA",
             postalCode = "12190"
         )
     }
+    val staticPayload = remember(merchantName, qrisNmid, qrisTerminal) {
+        QrisPayloadGenerator.generateStaticQris(
+            merchantName = merchantName,
+            nmid = qrisNmid,
+            terminalId = qrisTerminal,
+            merchantCity = "JAKARTA",
+            postalCode = "12190"
+        )
+    }
+    val currentQrisPayload = if (isStaticQrisMode) staticPayload else dynamicPayload
+
     var qrisSecondsRemaining by remember { mutableIntStateOf(300) }
 
     LaunchedEffect(selectedTab) {
@@ -286,17 +309,26 @@ fun CheckoutModal(
                     PaymentTab.QRIS -> {
                         DynamicQrisClean(
                             grandTotal = grandTotal,
-                            payload = qrisPayload,
-                            invoice = tempInvoiceNumber,
+                            payload = currentQrisPayload,
+                            invoice = if (isStaticQrisMode) "QRIS STATIS TOKO" else tempInvoiceNumber,
                             secondsLeft = qrisSecondsRemaining,
+                            merchantName = merchantName,
+                            nmid = qrisNmid,
+                            terminalId = qrisTerminal,
+                            isStaticMode = isStaticQrisMode,
+                            onToggleMode = { isStaticQrisMode = it },
                             onCopyPayload = {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("QRIS Payload", qrisPayload)
+                                val clip = ClipData.newPlainText("QRIS Payload", currentQrisPayload)
                                 clipboard.setPrimaryClip(clip)
                                 Toast.makeText(context, "QRIS EMVCo payload berhasil disalin", Toast.LENGTH_SHORT).show()
                             },
                             onConfirmPayment = {
-                                viewModel.completeCheckout("QRIS", grandTotal)
+                                viewModel.completeCheckout(
+                                    paymentMethod = "QRIS",
+                                    tenderedAmount = grandTotal,
+                                    notes = if (isStaticQrisMode) "QRIS Statis ($merchantName - $qrisTerminal)" else "QRIS Dinamis ($merchantName - $qrisTerminal)"
+                                )
                             }
                         )
                     }
@@ -492,6 +524,11 @@ fun DynamicQrisClean(
     payload: String,
     invoice: String,
     secondsLeft: Int,
+    merchantName: String,
+    nmid: String,
+    terminalId: String,
+    isStaticMode: Boolean,
+    onToggleMode: (Boolean) -> Unit,
     onCopyPayload: () -> Unit,
     onConfirmPayment: () -> Unit
 ) {
@@ -503,6 +540,53 @@ fun DynamicQrisClean(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Toggle Segment: QRIS Dinamis vs QRIS Statis Toko
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(SurfaceSubtle)
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (!isStaticMode) BrandBlue else Color.Transparent)
+                    .clickable { onToggleMode(false) }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "⚡ QRIS Dinamis",
+                    fontSize = 12.sp,
+                    fontWeight = if (!isStaticMode) FontWeight.Bold else FontWeight.Medium,
+                    color = if (!isStaticMode) Color.White else TextDarkPrimary
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (isStaticMode) BrandBlue else Color.Transparent)
+                    .clickable { onToggleMode(true) }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "🏷️ QRIS Statis Toko",
+                    fontSize = 12.sp,
+                    fontWeight = if (isStaticMode) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isStaticMode) Color.White else TextDarkPrimary
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Badge
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
@@ -518,7 +602,7 @@ fun DynamicQrisClean(
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "QRIS DINAMIS • OTOMATIS TERCATAT",
+                text = if (isStaticMode) "QRIS STATIS RESMI • STANDEE MEJA" else "QRIS DINAMIS • OTOMATIS TERCATAT",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = BrandBlue
@@ -527,35 +611,92 @@ fun DynamicQrisClean(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        var useDirectAssetFallback by remember { mutableStateOf(false) }
+
+        // Optional sub-toggle for QRIS Statis: ZXing QR Code vs Direct Official Standee Asset
+        if (isStaticMode) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(SurfaceSubtle)
+                    .padding(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (!useDirectAssetFallback) BrandBlueLight else Color.Transparent)
+                        .clickable { useDirectAssetFallback = false }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Kode QR (Resmi)",
+                        fontSize = 11.sp,
+                        fontWeight = if (!useDirectAssetFallback) FontWeight.Bold else FontWeight.Normal,
+                        color = if (!useDirectAssetFallback) BrandBlue else TextDarkSecondary
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (useDirectAssetFallback) BrandBlueLight else Color.Transparent)
+                        .clickable { useDirectAssetFallback = true }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Gambar Asli (Asset PNG)",
+                        fontSize = 11.sp,
+                        fontWeight = if (useDirectAssetFallback) FontWeight.Bold else FontWeight.Normal,
+                        color = if (useDirectAssetFallback) BrandBlue else TextDarkSecondary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
         Box(
             modifier = Modifier
                 .size(220.dp)
                 .testTag("dynamic_qris_qr_container"),
             contentAlignment = Alignment.Center
         ) {
-            QrCodeCanvas(payload = payload)
+            if (isStaticMode && useDirectAssetFallback) {
+                Image(
+                    painter = painterResource(id = R.drawable.qris_bds),
+                    contentDescription = "Official BDS QRIS Standee Asset",
+                    modifier = Modifier
+                        .size(220.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White)
+                        .border(1.5.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp))
+                        .padding(10.dp)
+                )
+            } else {
+                QrCodeCanvas(payload = payload)
+            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        // Store Official Details
         Text(
-            text = "CAFFEINERY SPECIALTY",
-            fontSize = 15.sp,
+            text = merchantName,
+            fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = TextDarkPrimary
         )
         Text(
-            text = "NMID: ID1024356789012 • $invoice",
+            text = "NMID: $nmid • Terminal: $terminalId",
             fontSize = 11.sp,
-            color = TextDarkSecondary
-        )
-
-        Text(
-            text = "Berlaku hingga $timerStr",
-            fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (secondsLeft < 60) Color(0xFFDC2626) else BrandBlue,
-            modifier = Modifier.padding(top = 4.dp)
+            color = BrandBlue
+        )
+        Text(
+            text = if (isStaticMode) "Standee Resmi Toko • Pelanggan input nominal" else "$invoice • Berlaku hingga $timerStr",
+            fontSize = 11.sp,
+            color = if (!isStaticMode && secondsLeft < 60) Color(0xFFDC2626) else TextDarkSecondary,
+            modifier = Modifier.padding(top = 2.dp)
         )
 
         Spacer(modifier = Modifier.height(12.dp))

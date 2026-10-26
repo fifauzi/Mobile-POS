@@ -19,55 +19,93 @@ object CsvExportService {
         orders: List<OrderEntity>,
         orderItemsMap: Map<String, List<OrderItemEntity>>
     ): String {
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val timeFormat = SimpleDateFormat("HH:mm:ss 'WIB'", Locale("id", "ID"))
+        val dateTimeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
         val sb = StringBuilder()
 
-        // Comprehensive CSV Header with Exact Time, Order Type, Cashier Name, Shift, Profit/Loss & Variant Columns
-        sb.append("Invoice,Date,Exact_Time_WIB,Order_Type,Cashier_Name,Shift,Customer,Payment_Method,Items_Summary,Variants_Detail,Subtotal,Item_Discount,Order_Discount,Service_Fee,Tax,Grand_Total,Total_COGS_HPP,Gross_Profit_Laba_Kotor,Net_Profit,Status\n")
+        // Dedicated 21-Column CSV Architecture with individual columns for each variant attribute
+        sb.append("Transaction ID,Date & Time,Employee / Cashier,Shift,Order Type,Category,Product Name,Base Price,Variant - Size,Variant - Type,Variant - Beans Type,Variant - Grind Size,Variant - Sugar Level,Variant - Add-ons,Variant Extra Price Total,Quantity,Subtotal,Discount,Tax / Service Fee,Grand Total,Payment Method\n")
 
         for (order in orders) {
-            val dateStr = dateFormat.format(Date(order.timestamp))
-            val timeStr = timeFormat.format(Date(order.timestamp))
-            val orderTypeStr = if (order.orderType == "TAKEAWAY") "Takeaway (Bungkus)" else "Dine-in (Makan di Tempat)"
+            val dateTimeStr = dateTimeFormat.format(Date(order.timestamp))
+            val cashier = order.cashierName.ifBlank { "Rian Pratama" }
+            val shift = com.example.data.local.SettingsStorageService.normalizeShift(order.shiftName)
+            val orderType = if (order.orderType == "TAKEAWAY") "Takeaway" else "Dine-in"
+            val taxServiceFee = order.taxAmount + order.serviceFeeAmount
+
             val items = orderItemsMap[order.invoiceNumber] ?: emptyList()
+            if (items.isEmpty()) {
+                val row = listOf(
+                    escapeCsv(order.invoiceNumber),
+                    escapeCsv(dateTimeStr),
+                    escapeCsv(cashier),
+                    escapeCsv(shift),
+                    escapeCsv(orderType),
+                    escapeCsv("Coffee"),
+                    escapeCsv("-"),
+                    "0.0",
+                    "-",
+                    "-",
+                    "-",
+                    "-",
+                    "-",
+                    "-",
+                    "0.0",
+                    "0",
+                    order.subtotal.toString(),
+                    (order.itemDiscountTotal + order.orderDiscountAmount).toString(),
+                    taxServiceFee.toString(),
+                    order.grandTotal.toString(),
+                    escapeCsv(order.paymentMethod)
+                )
+                sb.append(row.joinToString(",")).append("\n")
+            } else {
+                for (item in items) {
+                    val cat = item.categoryName.ifBlank { "Coffee" }
+                    val vSize = item.variantSize.ifBlank { "-" }
+                    val vType = item.variantType.ifBlank { "-" }
+                    val vBeans = item.variantBeans.ifBlank { "-" }
+                    val vGrind = item.variantGrind.ifBlank { "-" }
+                    val vSugar = item.variantSugar.ifBlank { "-" }
+                    val vAddons = item.variantAddons.ifBlank { "-" }
 
-            val itemsSummary = items.joinToString(" | ") {
-                "${it.productName} (x${it.quantity})"
-            }.replace("\"", "\"\"")
-
-            val variantsDetail = items.joinToString(" | ") {
-                "${it.productName}: ${if (it.variantSummary.isNotBlank()) it.variantSummary else "Standard"}"
-            }.replace("\"", "\"\"")
-
-            // Calculate HPP and Profit for this order
-            val totalCogsHpp = items.sumOf { it.costPrice * it.quantity }
-            val grossProfit = (order.subtotal - order.itemDiscountTotal - order.orderDiscountAmount) - totalCogsHpp
-            val netProfit = grossProfit // net operating margin before corporate taxes
-
-            sb.append("\"${order.invoiceNumber}\",")
-            sb.append("\"$dateStr\",")
-            sb.append("\"$timeStr\",")
-            sb.append("\"$orderTypeStr\",")
-            sb.append("\"${order.cashierName.replace("\"", "\"\"")}\",")
-            sb.append("\"${order.shiftName.replace("\"", "\"\"")}\",")
-            sb.append("\"${order.customerName.replace("\"", "\"\"")}\",")
-            sb.append("\"${order.paymentMethod}\",")
-            sb.append("\"$itemsSummary\",")
-            sb.append("\"$variantsDetail\",")
-            sb.append("${order.subtotal},")
-            sb.append("${order.itemDiscountTotal},")
-            sb.append("${order.orderDiscountAmount},")
-            sb.append("${order.serviceFeeAmount},")
-            sb.append("${order.taxAmount},")
-            sb.append("${order.grandTotal},")
-            sb.append("$totalCogsHpp,")
-            sb.append("$grossProfit,")
-            sb.append("$netProfit,")
-            sb.append("\"${order.paymentStatus}\"\n")
+                    val row = listOf(
+                        escapeCsv(order.invoiceNumber),
+                        escapeCsv(dateTimeStr),
+                        escapeCsv(cashier),
+                        escapeCsv(shift),
+                        escapeCsv(orderType),
+                        escapeCsv(cat),
+                        escapeCsv(item.productName),
+                        item.basePrice.toString(),
+                        escapeCsv(vSize),
+                        escapeCsv(vType),
+                        escapeCsv(vBeans),
+                        escapeCsv(vGrind),
+                        escapeCsv(vSugar),
+                        escapeCsv(vAddons),
+                        item.variantExtraTotal.toString(),
+                        item.quantity.toString(),
+                        item.lineTotal.toString(),
+                        item.itemDiscount.toString(),
+                        taxServiceFee.toString(),
+                        order.grandTotal.toString(),
+                        escapeCsv(order.paymentMethod)
+                    )
+                    sb.append(row.joinToString(",")).append("\n")
+                }
+            }
         }
 
         return sb.toString()
+    }
+
+    private fun escapeCsv(value: Any?): String {
+        val s = value?.toString() ?: ""
+        return if (s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r")) {
+            "\"${s.replace("\"", "\"\"")}\""
+        } else {
+            s
+        }
     }
 
     /**

@@ -15,7 +15,7 @@ data class EmployeeItem(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val role: String, // Manager, Kasir, Barista
-    val shift: String = "Shift 1 (Pagi)",
+    val shift: String = "Shift 1",
     val pin: String = "1234",
     val isActive: Boolean = true
 )
@@ -30,8 +30,9 @@ data class OrderMethodsConfig(
 data class PaymentGatewaysConfig(
     val isCashEnabled: Boolean = true,
     val isQrisEnabled: Boolean = true,
-    val qrisMerchantName: String = "CAFFEINERY SENOPATI",
-    val qrisNmid: String = "ID1020039485721",
+    val qrisMerchantName: String = "BDS COFFEE CO",
+    val qrisNmid: String = "ID1024365195063",
+    val qrisTerminal: String = "A01",
     val isBankTransferEnabled: Boolean = true,
     val bcaAccount: String = "BCA 827-019-2819 a/n PT Caffeinery Retail",
     val mandiriAccount: String = "Mandiri 137-00-1928374-1 a/n Caffeinery Coffee"
@@ -48,6 +49,7 @@ data class AdditionalFeesConfig(
 data class ReceiptCustomizerConfig(
     val paperSize: String = "58mm", // 58mm or 80mm
     val showLogo: Boolean = true,
+    val showTax: Boolean = true,
     val headerNote: String = "BDS COFFEE COMPANY",
     val footerNote: String = "Terima kasih atas kunjungan Anda ke BDS Coffee Company! • Caffeinery POS by BDS Tech",
     val printCopies: Int = 1

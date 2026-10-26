@@ -244,8 +244,8 @@ fun OpenBillsListModal(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "${bill.totalItemCount} item • Disimpan $timeStr",
-                                        fontSize = 12.sp,
+                                        text = "${bill.totalItemCount} item • $timeStr • Kasir: ${bill.cashierName.ifBlank { "Rian Pratama" }}",
+                                        fontSize = 11.sp,
                                         color = TextDarkMuted
                                     )
                                     Text(

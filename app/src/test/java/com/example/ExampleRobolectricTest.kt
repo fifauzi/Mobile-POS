@@ -70,4 +70,302 @@ class ExampleRobolectricTest {
         assertEquals(0x1B.toByte(), bytes[0])
         assertEquals(0x40.toByte(), bytes[1])
     }
+
+    @Test
+    fun `csv export includes 21 dedicated multi columns with cashier and shift`() {
+        val order = OrderEntity(
+            invoiceNumber = "INV-002",
+            timestamp = System.currentTimeMillis(),
+            customerName = "Budi Walk-in",
+            cashierName = "Maya Sari",
+            shiftName = "Shift 2",
+            subtotal = 50000.0,
+            grandTotal = 55000.0,
+            paymentMethod = "QRIS"
+        )
+        val item = OrderItemEntity(
+            orderInvoiceNumber = "INV-002",
+            productId = 1,
+            productName = "Spanish Latte",
+            sku = "CF-001",
+            basePrice = 35000.0,
+            unitPrice = 40000.0,
+            quantity = 1,
+            lineTotal = 40000.0,
+            categoryName = "Coffee",
+            variantSize = "Large (+Rp 5.000)",
+            variantType = "Iced",
+            variantBeans = "House Blend",
+            variantGrind = "-",
+            variantSugar = "Normal 100%",
+            variantAddons = "Extra Espresso Shot (+Rp 6.000)",
+            variantExtraTotal = 11000.0
+        )
+        val csv = com.example.service.CsvExportService.generateSalesCsv(
+            listOf(order),
+            mapOf("INV-002" to listOf(item))
+        )
+        assertTrue(csv.contains("Transaction ID,Date & Time,Employee / Cashier,Shift,Order Type,Category,Product Name,Base Price,Variant - Size,Variant - Type,Variant - Beans Type,Variant - Grind Size,Variant - Sugar Level,Variant - Add-ons,Variant Extra Price Total,Quantity,Subtotal,Discount,Tax / Service Fee,Grand Total,Payment Method"))
+        assertTrue(csv.contains("Maya Sari,Shift 2"))
+        assertTrue(csv.contains("Large (+Rp 5.000)"))
+        assertTrue(csv.contains("Extra Espresso Shot (+Rp 6.000)"))
+    }
+
+    @Test
+    fun `settings storage service persists and loads custom outlet info across restarts`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val storage1 = com.example.data.local.SettingsStorageService(context)
+        storage1.saveOutletInfo(
+            com.example.domain.model.OutletInfo(
+                name = "BDS Coffee Roasters",
+                branch = "Mega Kuningan",
+                address = "Jl. Prof. Dr. Satrio No. 1",
+                phone = "+62 811-2233-4455",
+                taxId = "99.888.777.6-555.000",
+                instagram = "@bdscoffee_roasters"
+            )
+        )
+
+        // Simulate app restart with a fresh storage instance
+        val storage2 = com.example.data.local.SettingsStorageService(context)
+        val loaded = storage2.loadOutletInfo()
+        assertEquals("BDS Coffee Roasters", loaded.name)
+        assertEquals("Mega Kuningan", loaded.branch)
+        assertEquals("Jl. Prof. Dr. Satrio No. 1", loaded.address)
+        assertEquals("+62 811-2233-4455", loaded.phone)
+        assertEquals("@bdscoffee_roasters", loaded.instagram)
+    }
+
+    @Test
+    fun `settings storage service persists receipt customizer and tax configurations`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val storage1 = com.example.data.local.SettingsStorageService(context)
+        storage1.saveReceiptCustomizer(
+            com.example.domain.model.ReceiptCustomizerConfig(
+                paperSize = "80mm",
+                showLogo = false,
+                showTax = false,
+                headerNote = "CUSTOM HEADER BDS",
+                footerNote = "CUSTOM FOOTER NOTE"
+            )
+        )
+        storage1.saveAdditionalFees(
+            com.example.domain.model.AdditionalFeesConfig(
+                isTaxEnabled = true,
+                taxPercentage = 11.0,
+                isServiceFeeEnabled = true,
+                serviceFeePercentage = 7.0,
+                isRoundingEnabled = false
+            )
+        )
+
+        // Simulate app restart
+        val storage2 = com.example.data.local.SettingsStorageService(context)
+        val loadedReceipt = storage2.loadReceiptCustomizer()
+        assertEquals("80mm", loadedReceipt.paperSize)
+        assertEquals(false, loadedReceipt.showLogo)
+        assertEquals(false, loadedReceipt.showTax)
+        assertEquals("CUSTOM HEADER BDS", loadedReceipt.headerNote)
+        assertEquals("CUSTOM FOOTER NOTE", loadedReceipt.footerNote)
+
+        val loadedFees = storage2.loadAdditionalFees()
+        assertEquals(true, loadedFees.isTaxEnabled)
+        assertEquals(11.0, loadedFees.taxPercentage, 0.01)
+        assertEquals(true, loadedFees.isServiceFeeEnabled)
+        assertEquals(7.0, loadedFees.serviceFeePercentage, 0.01)
+        assertEquals(false, loadedFees.isRoundingEnabled)
+    }
+
+    @Test
+    fun `settings storage service persists active cashier and simplified shift`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val storage1 = com.example.data.local.SettingsStorageService(context)
+        val emp = com.example.domain.model.EmployeeItem(
+            name = "Budi Santoso",
+            role = "Kasir",
+            shift = "Shift 2",
+            pin = "2024"
+        )
+        storage1.saveActiveEmployee(emp)
+        storage1.saveActiveShift("Shift 2")
+
+        // Simulate app restart
+        val storage2 = com.example.data.local.SettingsStorageService(context)
+        val loadedEmp = storage2.loadActiveEmployee()
+        val loadedShift = storage2.loadActiveShift()
+
+        assertEquals("Budi Santoso", loadedEmp.name)
+        assertEquals("Kasir", loadedEmp.role)
+        assertEquals("Shift 2", loadedShift)
+
+        // Also test Event shift
+        storage2.saveActiveShift("Event")
+        assertEquals("Event", storage2.loadActiveShift())
+    }
+
+    @Test
+    fun `cart item variant summary shows nominal price additions and hides zero cost`() {
+        val product = com.example.data.local.model.ProductEntity(
+            id = 10,
+            categoryId = "coffee",
+            name = "Espresso Tonic",
+            sku = "CF-010",
+            basePrice = 28000.0,
+            costPrice = 10000.0,
+            stockQuantity = 20
+        )
+        val variants = mapOf(
+            "Size" to listOf(com.example.domain.model.VariantOption("Large", 5000.0)),
+            "Type" to listOf(com.example.domain.model.VariantOption("Iced", 0.0)),
+            "Add-ons" to listOf(com.example.domain.model.VariantOption("Extra Espresso Shot", 6000.0))
+        )
+        val cartItem = com.example.domain.model.CartItem(
+            product = product,
+            selectedVariants = variants,
+            quantity = 1
+        )
+
+        val summary = cartItem.variantSummary
+        assertTrue(summary.contains("Large (+Rp 5.000)"))
+        assertTrue(summary.contains("Extra Espresso Shot (+Rp 6.000)"))
+        assertTrue(summary.contains("Iced"))
+        // Verify zero cost does not have (+Rp 0)
+        org.junit.Assert.assertFalse(summary.contains("Iced (+Rp 0)"))
+    }
+
+    @Test
+    fun `pdf receipt generation renders with dynamic height and no overflow`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val order = OrderEntity(
+            invoiceNumber = "INV-TEST-099",
+            timestamp = System.currentTimeMillis(),
+            customerName = "Arif Rahardian",
+            orderType = "DINE_IN",
+            cashierName = "Rian Pratama",
+            shiftName = "Shift 1",
+            subtotal = 70000.0,
+            taxAmount = 7000.0,
+            grandTotal = 77000.0,
+            paymentMethod = "CASH",
+            tenderedAmount = 100000.0,
+            changeAmount = 23000.0
+        )
+        val items = listOf(
+            OrderItemEntity(
+                orderInvoiceNumber = "INV-TEST-099",
+                productId = 1,
+                productName = "Specialty House Blend V60 Long Name That Might Wrap",
+                sku = "CF-001",
+                basePrice = 35000.0,
+                unitPrice = 40000.0,
+                quantity = 2,
+                lineTotal = 70000.0,
+                variantSummary = "Large (+Rp 5.000), Extra Espresso Shot (+Rp 6.000)"
+            )
+        )
+        val message = com.example.service.PdfReceiptService.buildWhatsAppReceiptMessage(
+            order = order,
+            items = items
+        )
+        assertNotNull(message)
+        assertTrue(message.contains("Kasir:* Rian Pratama"))
+        org.junit.Assert.assertFalse(message.contains("Shift 1"))
+        assertTrue(message.contains("Large (+Rp 5.000)"))
+        assertTrue(message.contains("Extra Espresso Shot (+Rp 6.000)"))
+        assertTrue(message.contains("77.000"))
+    }
+
+    @Test
+    fun `official BDS COFFEE CO dynamic and static QRIS generation`() {
+        val dynamicPayload = QrisPayloadGenerator.generateDynamicQris(
+            invoiceNumber = "INV-BDS-001",
+            amount = 50000.0,
+            merchantName = "BDS COFFEE CO",
+            nmid = "ID1024365195063",
+            terminalId = "A01"
+        )
+        assertNotNull(dynamicPayload)
+        assertTrue(dynamicPayload.contains("BDS COFFEE CO"))
+        assertTrue(dynamicPayload.contains("ID1024365195063"))
+        assertTrue(dynamicPayload.contains("A01"))
+        assertTrue(dynamicPayload.contains("540550000")) // Nominal Rp 50.000
+        assertEquals(4, dynamicPayload.takeLast(4).length)
+        assertTrue(QrisPayloadGenerator.isValidQrisPayload(dynamicPayload))
+
+        val staticPayload = QrisPayloadGenerator.generateStaticQris(
+            merchantName = "BDS COFFEE CO",
+            nmid = "ID1024365195063",
+            terminalId = "A01"
+        )
+        assertEquals(QrisPayloadGenerator.OFFICIAL_STATIC_QRIS_PAYLOAD, staticPayload)
+        assertTrue(staticPayload.startsWith("000201010211")) // Point of initiation 11 (Static QR)
+        assertTrue(staticPayload.contains("BDS COFFEE CO"))
+        assertTrue(staticPayload.contains("ID1024365195063"))
+        assertTrue(staticPayload.contains("A01"))
+        // Static QR does NOT have Tag 54 (amount fixed)
+        org.junit.Assert.assertFalse(staticPayload.contains("540550000"))
+        assertTrue(QrisPayloadGenerator.isValidQrisPayload(staticPayload))
+    }
+
+    @Test
+    fun `zxing qr matrix generator produces valid non-empty matrix for official payload`() {
+        val matrix = com.example.ui.components.QrMatrixBuilder.generateMatrix(QrisPayloadGenerator.OFFICIAL_STATIC_QRIS_PAYLOAD)
+        assertTrue(matrix.isNotEmpty())
+        assertTrue(matrix[0].isNotEmpty())
+        val hasDarkModules = matrix.any { row -> row.any { it } }
+        assertTrue(hasDarkModules)
+        // With margin=1, (1, 1) is the start of the top-left finder pattern
+        assertTrue(matrix[1][1])
+    }
+
+    @Test
+    fun `official qris_bds asset png exists and loads via AssetManager and Drawable`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val assetStream = context.assets.open("qris_bds.png")
+        assertNotNull(assetStream)
+        assertTrue(assetStream.available() > 0)
+        assetStream.close()
+
+        val drawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.qris_bds)
+        assertNotNull(drawable)
+    }
+
+    @Test
+    fun `printer connection guard recognizes virtual simulator and rejects blank address`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        assertTrue(EscPosPrinterService.isPrinterConnected(context, "00:11:22:33:44:55"))
+        org.junit.Assert.assertFalse(EscPosPrinterService.isPrinterConnected(context, ""))
+        org.junit.Assert.assertFalse(EscPosPrinterService.isPrinterConnected(context, "   "))
+    }
+
+    @Test
+    fun `thermal receipt bytes show only cashier name and omit shift`() {
+        val order = OrderEntity(
+            invoiceNumber = "INV-003",
+            timestamp = System.currentTimeMillis(),
+            customerName = "Guest",
+            cashierName = "Budi Kasir",
+            shiftName = "Shift 1",
+            subtotal = 35000.0,
+            grandTotal = 35000.0,
+            paymentMethod = "CASH"
+        )
+        val items = listOf(
+            OrderItemEntity(
+                orderInvoiceNumber = "INV-003",
+                productId = 1,
+                productName = "Latte",
+                sku = "CF-001",
+                basePrice = 35000.0,
+                unitPrice = 35000.0,
+                quantity = 1,
+                lineTotal = 35000.0
+            )
+        )
+        val bytes = EscPosPrinterService.buildReceiptBytes(order, items)
+        val receiptText = String(bytes, Charsets.ISO_8859_1)
+        assertTrue(receiptText.contains("Kasir:"))
+        assertTrue(receiptText.contains("Budi Kasir"))
+        org.junit.Assert.assertFalse(receiptText.contains("Shift 1"))
+    }
 }

@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
+import com.example.data.local.SettingsStorageService
 import com.example.data.local.model.CategoryEntity
 import com.example.data.local.model.OrderEntity
 import com.example.data.local.model.OrderItemEntity
@@ -26,6 +27,7 @@ import com.example.service.BluetoothPrinterDevice
 import com.example.service.CsvExportService
 import com.example.service.EscPosPrinterService
 import com.example.service.QrisPayloadGenerator
+import com.example.ui.components.CurrencyUtils
 import com.example.ui.components.PosTab
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,10 +60,12 @@ data class CartSummary(
 class PosViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: PosRepository
+    private val settingsStorage: SettingsStorageService = SettingsStorageService(application)
 
     init {
         val database = AppDatabase.getDatabase(application, viewModelScope)
         repository = PosRepository(database.posDao())
+        settingsStorage.initDefaultsIfEmpty()
     }
 
     // Active Navigation Tab
@@ -160,76 +164,78 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         _orderType.value = type
     }
 
-    // Business Settings Management
-    private val _outletInfo = MutableStateFlow(OutletInfo())
+    // Business Settings Management (Persisted via SettingsStorageService)
+    private val _outletInfo = MutableStateFlow(settingsStorage.loadOutletInfo())
     val outletInfo: StateFlow<OutletInfo> = _outletInfo.asStateFlow()
 
     fun updateOutletInfo(info: OutletInfo) {
         _outletInfo.value = info
+        settingsStorage.saveOutletInfo(info)
     }
 
-    private val _employees = MutableStateFlow(
-        listOf(
-            EmployeeItem(name = "Rian Pratama", role = "Manager / Owner", pin = "8899"),
-            EmployeeItem(name = "Maya Sari", role = "Head Barista", pin = "1234"),
-            EmployeeItem(name = "Budi Santoso", role = "Kasir", pin = "2024"),
-            EmployeeItem(name = "Dimas Anggara", role = "Barista", pin = "1122")
-        )
-    )
+    private val _employees = MutableStateFlow(settingsStorage.loadEmployees())
     val employees: StateFlow<List<EmployeeItem>> = _employees.asStateFlow()
 
     // Active Logged-in Cashier & Shift Tracking
-    private val _activeEmployee = MutableStateFlow(
-        EmployeeItem(name = "Rian Pratama", role = "Manager / Owner", shift = "Shift 1 (Pagi)", pin = "8899")
-    )
+    private val _activeEmployee = MutableStateFlow(settingsStorage.loadActiveEmployee())
     val activeEmployee: StateFlow<EmployeeItem> = _activeEmployee.asStateFlow()
 
     fun setActiveEmployee(emp: EmployeeItem) {
         _activeEmployee.value = emp
+        settingsStorage.saveActiveEmployee(emp)
     }
 
-    private val _activeShift = MutableStateFlow("Shift 1 (08:00 - 16:00)")
+    private val _activeShift = MutableStateFlow(settingsStorage.loadActiveShift())
     val activeShift: StateFlow<String> = _activeShift.asStateFlow()
 
     fun setActiveShift(shift: String) {
         _activeShift.value = shift
+        settingsStorage.saveActiveShift(shift)
     }
 
     fun addEmployee(name: String, role: String, pin: String) {
         val newItem = EmployeeItem(name = name, role = role, pin = pin)
-        _employees.value = _employees.value + newItem
+        val updated = _employees.value + newItem
+        _employees.value = updated
+        settingsStorage.saveEmployees(updated)
     }
 
     fun removeEmployee(id: String) {
-        _employees.value = _employees.value.filter { it.id != id }
+        val updated = _employees.value.filter { it.id != id }
+        _employees.value = updated
+        settingsStorage.saveEmployees(updated)
     }
 
-    private val _orderMethods = MutableStateFlow(OrderMethodsConfig())
+    private val _orderMethods = MutableStateFlow(settingsStorage.loadOrderMethods())
     val orderMethods: StateFlow<OrderMethodsConfig> = _orderMethods.asStateFlow()
 
     fun updateOrderMethods(config: OrderMethodsConfig) {
         _orderMethods.value = config
+        settingsStorage.saveOrderMethods(config)
     }
 
-    private val _paymentGateways = MutableStateFlow(PaymentGatewaysConfig())
+    private val _paymentGateways = MutableStateFlow(settingsStorage.loadPaymentGateways())
     val paymentGateways: StateFlow<PaymentGatewaysConfig> = _paymentGateways.asStateFlow()
 
     fun updatePaymentGateways(config: PaymentGatewaysConfig) {
         _paymentGateways.value = config
+        settingsStorage.savePaymentGateways(config)
     }
 
-    private val _additionalFees = MutableStateFlow(AdditionalFeesConfig())
+    private val _additionalFees = MutableStateFlow(settingsStorage.loadAdditionalFees())
     val additionalFees: StateFlow<AdditionalFeesConfig> = _additionalFees.asStateFlow()
 
     fun updateAdditionalFees(config: AdditionalFeesConfig) {
         _additionalFees.value = config
+        settingsStorage.saveAdditionalFees(config)
     }
 
-    private val _receiptCustomizer = MutableStateFlow(ReceiptCustomizerConfig())
+    private val _receiptCustomizer = MutableStateFlow(settingsStorage.loadReceiptCustomizer())
     val receiptCustomizer: StateFlow<ReceiptCustomizerConfig> = _receiptCustomizer.asStateFlow()
 
     fun updateReceiptCustomizer(config: ReceiptCustomizerConfig) {
         _receiptCustomizer.value = config
+        settingsStorage.saveReceiptCustomizer(config)
     }
 
     val cartSummary: StateFlow<CartSummary> = combine(
@@ -298,7 +304,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     private val _pairedPrinters = MutableStateFlow<List<BluetoothPrinterDevice>>(emptyList())
     val pairedPrinters: StateFlow<List<BluetoothPrinterDevice>> = _pairedPrinters.asStateFlow()
 
-    private val _selectedPrinterAddress = MutableStateFlow("00:11:22:33:44:55")
+    private val _selectedPrinterAddress = MutableStateFlow(settingsStorage.loadSelectedPrinter().ifBlank { "00:11:22:33:44:55" })
     val selectedPrinterAddress: StateFlow<String> = _selectedPrinterAddress.asStateFlow()
 
     private val _printerStatusMessage = MutableStateFlow("Ready to print")
@@ -306,6 +312,17 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isPrintingAnimation = MutableStateFlow(false)
     val isPrintingAnimation: StateFlow<Boolean> = _isPrintingAnimation.asStateFlow()
+
+    private val _showPrinterDisconnectedAlert = MutableStateFlow(false)
+    val showPrinterDisconnectedAlert: StateFlow<Boolean> = _showPrinterDisconnectedAlert.asStateFlow()
+
+    fun dismissPrinterDisconnectedAlert() {
+        _showPrinterDisconnectedAlert.value = false
+    }
+
+    fun triggerPrinterDisconnectedAlert() {
+        _showPrinterDisconnectedAlert.value = true
+    }
 
     fun openVariantPicker(product: ProductEntity) {
         _selectedProductForVariant.value = product
@@ -443,6 +460,20 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         val orderItems = items.map { cartItem ->
+            val catName = categories.value.find { it.id == cartItem.product.categoryId }?.name ?: "Coffee"
+            val varSize = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Size", ignoreCase = true) }
+                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
+            val varType = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Type", ignoreCase = true) }
+                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
+            val varBeans = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Beans", ignoreCase = true) }
+                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
+            val varGrind = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Grind", ignoreCase = true) }
+                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
+            val varSugar = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Sugar", ignoreCase = true) }
+                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
+            val varAddons = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Add", ignoreCase = true) }
+                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
+
             OrderItemEntity(
                 orderInvoiceNumber = invoice,
                 productId = cartItem.product.id,
@@ -454,7 +485,15 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 unitPrice = cartItem.finalUnitPrice,
                 quantity = cartItem.quantity,
                 itemDiscount = cartItem.totalDiscountAmount,
-                lineTotal = cartItem.lineTotal
+                lineTotal = cartItem.lineTotal,
+                categoryName = catName,
+                variantSize = varSize,
+                variantType = varType,
+                variantBeans = varBeans,
+                variantGrind = varGrind,
+                variantSugar = varSugar,
+                variantAddons = varAddons,
+                variantExtraTotal = cartItem.variantPriceDelta
             )
         }
 
@@ -464,6 +503,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             _isCheckoutModalOpen.value = false
             _isReceiptModalOpen.value = true
             clearCart()
+            // Auto-Print Trigger upon completing payment
+            attemptPrintReceipt(getApplication(), order, orderItems)
         }
     }
 
@@ -474,6 +515,22 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectPrinter(address: String) {
         _selectedPrinterAddress.value = address
+        settingsStorage.saveSelectedPrinter(address)
+    }
+
+    /**
+     * Guards print execution: checks if printer is connected.
+     * If disconnected, sets showPrinterDisconnectedAlert to true.
+     */
+    fun attemptPrintReceipt(context: Context, order: OrderEntity, items: List<OrderItemEntity>) {
+        val address = _selectedPrinterAddress.value
+        val isConnected = EscPosPrinterService.isPrinterConnected(context, address)
+        if (!isConnected) {
+            _showPrinterDisconnectedAlert.value = true
+            _printerStatusMessage.value = "Printer belum terhubung. Silakan sambungkan printer Bluetooth terlebih dahulu."
+            return
+        }
+        printCurrentReceipt(context, order, items)
     }
 
     fun printCurrentReceipt(context: Context, order: OrderEntity, items: List<OrderItemEntity>) {
@@ -488,7 +545,9 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 storeName = info.name,
                 storeAddress = "${info.address} (${info.branch})",
                 storePhone = "Telp: ${info.phone}",
-                footerMessage = rc.footerNote
+                footerMessage = rc.footerNote,
+                showTax = rc.showTax,
+                paperWidth = if (rc.paperSize == "80mm") 48 else 32
             )
             val result = EscPosPrinterService.printBytes(_selectedPrinterAddress.value, bytes)
             result.onSuccess { msg ->

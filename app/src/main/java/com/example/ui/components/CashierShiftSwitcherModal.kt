@@ -83,14 +83,14 @@ fun CashierShiftSwitcherModal(
     )
 
     var selectedEmployee by remember { mutableStateOf(currentEmployee) }
-    var selectedShift by remember { mutableStateOf(currentShift) }
+    var selectedShift by remember { mutableStateOf(com.example.data.local.SettingsStorageService.normalizeShift(currentShift)) }
     var enteredPin by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf(false) }
 
     val shifts = listOf(
-        "Shift 1 (08:00 - 16:00)",
-        "Shift 2 (16:00 - 23:00)",
-        "Shift Khusus / Event"
+        "Shift 1",
+        "Shift 2",
+        "Event"
     )
 
     ModalBottomSheet(

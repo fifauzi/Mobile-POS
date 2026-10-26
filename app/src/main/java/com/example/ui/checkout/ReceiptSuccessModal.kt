@@ -1,6 +1,7 @@
 package com.example.ui.checkout
 
 import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +22,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.PrintDisabled
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,6 +55,7 @@ import com.example.data.local.model.OrderItemEntity
 import com.example.service.CsvExportService
 import com.example.ui.PosViewModel
 import com.example.ui.components.CurrencyUtils
+import com.example.ui.components.PosTab
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.BrandBlue
 import com.example.ui.theme.BrandBlueLight
@@ -77,6 +82,7 @@ fun ReceiptSuccessModal(
     val printerStatus by viewModel.printerStatusMessage.collectAsStateWithLifecycle()
     val outletInfo by viewModel.outletInfo.collectAsStateWithLifecycle()
     val receiptConfig by viewModel.receiptCustomizer.collectAsStateWithLifecycle()
+    val showPrinterDisconnectedAlert by viewModel.showPrinterDisconnectedAlert.collectAsStateWithLifecycle()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -176,8 +182,7 @@ fun ReceiptSuccessModal(
                     val orderTypeLabel = if (order.orderType == "TAKEAWAY") "BUNGKUS (TAKEAWAY)" else "MAKAN DI TEMPAT (DINE-IN)"
                     ReceiptRowMonospace("TIPE PESANAN", orderTypeLabel)
                     val dateFormatted = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID")).format(Date(order.timestamp))
-                    ReceiptRowMonospace("WAKTU", dateFormatted)
-                    ReceiptRowMonospace("KASIR", "Barista Team")
+                    ReceiptRowMonospace("KASIR", order.cashierName.ifBlank { "Rian Pratama" })
                     ReceiptRowMonospace("PELANGGAN", order.customerName.ifEmpty { "Pelanggan Walk-in" })
                     ReceiptRowMonospace("METODE", order.paymentMethod)
 
@@ -238,7 +243,7 @@ fun ReceiptSuccessModal(
                     if (order.serviceFeeAmount > 0) {
                         ReceiptRowMonospace("BIAYA LAYANAN (${order.serviceFeePercentage.toInt()}%)", CurrencyUtils.formatIdr(order.serviceFeeAmount))
                     }
-                    if (order.taxAmount > 0) {
+                    if (receiptConfig.showTax && order.taxAmount > 0) {
                         ReceiptRowMonospace("PAJAK PB1 (${order.taxPercentage.toInt()}%)", CurrencyUtils.formatIdr(order.taxAmount))
                     }
 
@@ -331,7 +336,7 @@ fun ReceiptSuccessModal(
             // Print Thermal Receipt Button (BrandBlue Button)
             Button(
                 onClick = {
-                    viewModel.printCurrentReceipt(context, order, items)
+                    viewModel.attemptPrintReceipt(context, order, items)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -394,6 +399,65 @@ fun ReceiptSuccessModal(
 
             Spacer(modifier = Modifier.height(28.dp))
         }
+    }
+
+    // Bluetooth Disconnected Alert Dialog Guard
+    if (showPrinterDisconnectedAlert) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissPrinterDisconnectedAlert() },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.PrintDisabled,
+                    contentDescription = null,
+                    tint = Color(0xFFDC2626),
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Printer Belum Terhubung",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = TextDarkPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "Printer belum terhubung. Silakan sambungkan printer Bluetooth terlebih dahulu.",
+                    fontSize = 14.sp,
+                    color = TextDarkSecondary,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.dismissPrinterDisconnectedAlert()
+                        try {
+                            val intent = Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            viewModel.setCurrentTab(PosTab.SETTINGS)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Pengaturan Bluetooth", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { viewModel.dismissPrinterDisconnectedAlert() }
+                ) {
+                    Text("Tutup", fontWeight = FontWeight.SemiBold, color = TextDarkSecondary)
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = CardBg
+        )
     }
 }
 

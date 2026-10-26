@@ -1,6 +1,7 @@
 package com.example.domain.model
 
 import com.example.data.local.model.ProductEntity
+import com.example.ui.components.CurrencyUtils
 import java.util.UUID
 
 enum class DiscountType {
@@ -42,7 +43,13 @@ data class CartItem(
 
     val variantSummary: String
         get() {
-            val items = selectedVariants.values.flatten().map { it.name }
+            val items = selectedVariants.values.flatten().map { opt ->
+                if (opt.priceAdjustment > 0) {
+                    "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})"
+                } else {
+                    opt.name
+                }
+            }
             return if (items.isEmpty()) "Standard" else items.joinToString(", ")
         }
 }

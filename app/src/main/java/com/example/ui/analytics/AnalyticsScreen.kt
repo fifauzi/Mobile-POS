@@ -102,11 +102,26 @@ fun AnalyticsScreen(
     val filteredOrders = remember(orders, filterLabel) {
         val now = System.currentTimeMillis()
         val oneDayMs = 24L * 60 * 60 * 1000
+        val cal = java.util.Calendar.getInstance()
         when (filterLabel) {
-            "Hari ini" -> orders.filter { now - it.timestamp <= oneDayMs }
+            "Hari ini" -> {
+                cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                cal.set(java.util.Calendar.MINUTE, 0)
+                cal.set(java.util.Calendar.SECOND, 0)
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                orders.filter { it.timestamp >= cal.timeInMillis }
+            }
             "7 hari terakhir" -> orders.filter { now - it.timestamp <= 7 * oneDayMs }
             "14 hari terakhir" -> orders.filter { now - it.timestamp <= 14 * oneDayMs }
             "30 hari terakhir" -> orders.filter { now - it.timestamp <= 30 * oneDayMs }
+            "Bulan ini" -> {
+                cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                cal.set(java.util.Calendar.MINUTE, 0)
+                cal.set(java.util.Calendar.SECOND, 0)
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                orders.filter { it.timestamp >= cal.timeInMillis }
+            }
             else -> orders
         }
     }
@@ -148,6 +163,16 @@ fun AnalyticsScreen(
         if (totalRevenue > 0) (netProfit / totalRevenue) * 100.0 else 0.0
     }
 
+    val shift1Orders = remember(filteredOrders) {
+        filteredOrders.filter { com.example.data.local.SettingsStorageService.normalizeShift(it.shiftName) == "Shift 1" }
+    }
+    val shift2Orders = remember(filteredOrders) {
+        filteredOrders.filter { com.example.data.local.SettingsStorageService.normalizeShift(it.shiftName) == "Shift 2" }
+    }
+    val eventOrders = remember(filteredOrders) {
+        filteredOrders.filter { com.example.data.local.SettingsStorageService.normalizeShift(it.shiftName) == "Event" }
+    }
+
     val paymentBreakdown = remember(filteredOrders) {
         val map = mutableMapOf("CASH" to 0.0, "QRIS" to 0.0, "BANK_TRANSFER" to 0.0)
         filteredOrders.forEach { ord ->
@@ -167,6 +192,16 @@ fun AnalyticsScreen(
             }
             .sortedByDescending { it.second }
             .take(5)
+    }
+
+    val employeeSalesBreakdown = remember(filteredOrders) {
+        filteredOrders.groupBy { it.cashierName.ifBlank { "Rian Pratama" } }
+            .map { (name, list) ->
+                val count = list.size
+                val rev = list.sumOf { it.grandTotal }
+                Triple(name, count, rev)
+            }
+            .sortedByDescending { it.third }
     }
 
     Box(
@@ -365,7 +400,7 @@ fun AnalyticsScreen(
                         onDismissRequest = { isDateDropdownOpen = false },
                         modifier = Modifier.background(CardBg)
                     ) {
-                        listOf("Hari ini", "7 hari terakhir", "14 hari terakhir", "30 hari terakhir", "Semua waktu").forEach { opt ->
+                        listOf("Hari ini", "7 hari terakhir", "14 hari terakhir", "30 hari terakhir", "Bulan ini", "Semua waktu").forEach { opt ->
                             DropdownMenuItem(
                                 text = { Text(opt, fontWeight = if (filterLabel == opt) FontWeight.Bold else FontWeight.Normal) },
                                 onClick = {
@@ -503,19 +538,31 @@ fun AnalyticsScreen(
                         color = TextDarkSecondary
                     )
 
+                    val shift1Cashier = shift1Orders.map { it.cashierName }.distinct().joinToString().ifBlank { "Rian Pratama" }
                     LaporanScheduleRow(
-                        title = "Shift Pagi (08:00 - 14:00)",
-                        subtitle = "10:00 WIB • Total Selesai",
-                        transCount = "$totalOrdersCount transaksi",
-                        amount = CurrencyUtils.formatIdr(totalRevenue * 0.45)
+                        title = "Shift 1 - Kasir: $shift1Cashier",
+                        subtitle = "Sesi Pagi / Utama",
+                        transCount = "${shift1Orders.size} transaksi",
+                        amount = CurrencyUtils.formatIdr(shift1Orders.sumOf { it.grandTotal })
                     )
 
+                    val shift2Cashier = shift2Orders.map { it.cashierName }.distinct().joinToString().ifBlank { "Maya Sari" }
                     LaporanScheduleRow(
-                        title = "Shift Sore (14:00 - 22:00)",
-                        subtitle = "18:00 WIB • Sesi Berjalan",
-                        transCount = "Aktif",
-                        amount = CurrencyUtils.formatIdr(totalRevenue * 0.55)
+                        title = "Shift 2 - Kasir: $shift2Cashier",
+                        subtitle = "Sesi Sore / Penutupan",
+                        transCount = "${shift2Orders.size} transaksi",
+                        amount = CurrencyUtils.formatIdr(shift2Orders.sumOf { it.grandTotal })
                     )
+
+                    if (eventOrders.isNotEmpty()) {
+                        val eventCashier = eventOrders.map { it.cashierName }.distinct().joinToString().ifBlank { "Tim Event" }
+                        LaporanScheduleRow(
+                            title = "Event - Kasir: $eventCashier",
+                            subtitle = "Sesi Khusus / Event",
+                            transCount = "${eventOrders.size} transaksi",
+                            amount = CurrencyUtils.formatIdr(eventOrders.sumOf { it.grandTotal })
+                        )
+                    }
 
                     // "Penarikan Instan >" box
                     Box(
@@ -561,6 +608,138 @@ fun AnalyticsScreen(
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF16A34A)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Omnibus / Per-Employee Sales Summary Card
+            Card(
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("employee_sales_summary_card")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Kinerja Kasir & Karyawan",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDarkPrimary
+                            )
+                            Text(
+                                text = "Breakdown omzet & transaksi per pegawai",
+                                fontSize = 11.sp,
+                                color = TextDarkSecondary
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(BrandBlueLight.copy(alpha = 0.5f))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "${employeeSalesBreakdown.size} Kasir",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandBlue
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    if (employeeSalesBreakdown.isEmpty()) {
+                        Text(
+                            text = "Belum ada transaksi tercatat",
+                            fontSize = 12.sp,
+                            color = TextDarkMuted
+                        )
+                    } else {
+                        employeeSalesBreakdown.forEachIndexed { idx, (empName, txCount, empRev) ->
+                            val percentage = if (totalRevenue > 0) (empRev / totalRevenue).toFloat() else 0f
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(CircleShape)
+                                                .background(if (idx == 0) BrandBlue else Color(0xFFE2E8F0)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = empName.take(1).uppercase(),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (idx == 0) Color.White else TextDarkPrimary
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = empName,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextDarkPrimary
+                                            )
+                                            Text(
+                                                text = "$txCount transaksi • ${(percentage * 100).toInt()}% kontribusi",
+                                                fontSize = 11.sp,
+                                                color = TextDarkSecondary
+                                            )
+                                        }
+                                    }
+
+                                    Text(
+                                        text = CurrencyUtils.formatIdr(empRev),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandBlue
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+                                LinearProgressIndicator(
+                                    progress = { percentage },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(6.dp)
+                                        .clip(RoundedCornerShape(3.dp)),
+                                    color = if (idx == 0) BrandBlue else Color(0xFF38BDF8),
+                                    trackColor = SurfaceSubtle
+                                )
+                            }
+                            if (idx < employeeSalesBreakdown.size - 1) {
+                                HorizontalDivider(
+                                    thickness = 0.5.dp,
+                                    color = BorderSubtle,
+                                    modifier = Modifier.padding(vertical = 4.dp)
                                 )
                             }
                         }
@@ -618,7 +797,7 @@ fun AnalyticsScreen(
                         .padding(18.dp)
                 ) {
                     Text(
-                        text = "Produk Terlaris",
+                        text = "🏆 Menu Terlaris ($filterLabel)",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextDarkPrimary,

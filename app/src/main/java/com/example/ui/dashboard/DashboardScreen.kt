@@ -125,11 +125,26 @@ fun DashboardScreen(
         products.filter { it.stockQuantity <= 10 }.take(4)
     }
 
-    val topProducts = remember(allOrderItems) {
-        allOrderItems.groupBy { it.productName }
-            .map { (name, items) -> Pair(name, items.sumOf { it.quantity }) }
+    val todayTopProducts = remember(orders, allOrderItems) {
+        val calendar = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val startOfToday = calendar.timeInMillis
+        val todayInvoices = orders.filter { it.timestamp >= startOfToday }.map { it.invoiceNumber }.toSet()
+        val itemsForToday = allOrderItems.filter { it.orderInvoiceNumber in todayInvoices }
+        val sourceItems = if (itemsForToday.isNotEmpty()) itemsForToday else allOrderItems
+
+        sourceItems.groupBy { it.productName }
+            .map { (name, items) ->
+                val qty = items.sumOf { it.quantity }
+                val rev = items.sumOf { it.lineTotal }
+                Triple(name, qty, rev)
+            }
             .sortedByDescending { it.second }
-            .take(3)
+            .take(5)
     }
 
     Box(
@@ -434,15 +449,29 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // Top Products Section
-            if (topProducts.isNotEmpty()) {
-                Text(
-                    text = "Menu Terlaris Hari Ini",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextDarkPrimary,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
+            // Top Products Section: Menu Terlaris Hari Ini
+            if (todayTopProducts.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🏆 Menu Terlaris Hari Ini",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDarkPrimary
+                    )
+                    Text(
+                        text = "Lihat Semua ➔",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandBlue,
+                        modifier = Modifier.clickable { viewModel.setCurrentTab(PosTab.TRANSAKSI) }
+                    )
+                }
 
                 Card(
                     shape = RoundedCornerShape(22.dp),
@@ -451,7 +480,7 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        topProducts.forEachIndexed { index, (name, qty) ->
+                        todayTopProducts.forEachIndexed { index, (name, qty, rev) ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -475,12 +504,19 @@ fun DashboardScreen(
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = name,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextDarkPrimary
-                                    )
+                                    Column {
+                                        Text(
+                                            text = name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDarkPrimary
+                                        )
+                                        Text(
+                                            text = CurrencyUtils.formatIdr(rev),
+                                            fontSize = 11.sp,
+                                            color = TextDarkSecondary
+                                        )
+                                    }
                                 }
 
                                 Text(
@@ -491,7 +527,7 @@ fun DashboardScreen(
                                 )
                             }
 
-                            if (index < topProducts.size - 1) {
+                            if (index < todayTopProducts.size - 1) {
                                 HorizontalDivider(thickness = 0.5.dp, color = BorderSubtle, modifier = Modifier.padding(start = 56.dp))
                             }
                         }

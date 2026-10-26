@@ -73,6 +73,7 @@ import com.example.ui.components.CurrencyUtils
 import com.example.ui.components.ProductFallbackAvatar
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.BrandBlue
+import com.example.ui.theme.BrandBlueLight
 import com.example.ui.theme.CardBg
 import com.example.ui.theme.ScaffoldBg
 import com.example.ui.theme.StockGreenBg

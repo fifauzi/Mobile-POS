@@ -93,6 +93,7 @@ fun OutletSettingsSheet(
     var address by remember { mutableStateOf(outletInfo.address) }
     var phone by remember { mutableStateOf(outletInfo.phone) }
     var taxId by remember { mutableStateOf(outletInfo.taxId) }
+    var instagram by remember { mutableStateOf(outletInfo.instagram) }
 
     BaseSettingsSheet(title = "Informasi Outlet", subtitle = "Pengaturan profil usaha dan struk fisik", onDismiss = onDismiss) {
         SettingInputField(label = "Nama Usaha / Toko", value = name, onValueChange = { name = it })
@@ -100,6 +101,7 @@ fun OutletSettingsSheet(
         SettingInputField(label = "Alamat Lengkap", value = address, onValueChange = { address = it })
         SettingInputField(label = "Nomor Telepon", value = phone, onValueChange = { phone = it }, keyboardType = KeyboardType.Phone)
         SettingInputField(label = "NPWP / Pajak ID", value = taxId, onValueChange = { taxId = it })
+        SettingInputField(label = "Instagram / Media Sosial", value = instagram, onValueChange = { instagram = it })
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -111,7 +113,8 @@ fun OutletSettingsSheet(
                         branch = branch.trim(),
                         address = address.trim(),
                         phone = phone.trim(),
-                        taxId = taxId.trim()
+                        taxId = taxId.trim(),
+                        instagram = instagram.trim()
                     )
                 )
                 Toast.makeText(context, "Informasi Outlet Berhasil Disimpan", Toast.LENGTH_SHORT).show()
@@ -288,6 +291,7 @@ fun PaymentGatewaysSettingsSheet(
     var isQris by remember { mutableStateOf(config.isQrisEnabled) }
     var qrisMerchant by remember { mutableStateOf(config.qrisMerchantName) }
     var qrisNmid by remember { mutableStateOf(config.qrisNmid) }
+    var qrisTerminal by remember { mutableStateOf(config.qrisTerminal) }
     var isTransfer by remember { mutableStateOf(config.isBankTransferEnabled) }
     var bcaAcc by remember { mutableStateOf(config.bcaAccount) }
     var mandiriAcc by remember { mutableStateOf(config.mandiriAccount) }
@@ -299,6 +303,7 @@ fun PaymentGatewaysSettingsSheet(
         if (isQris) {
             SettingInputField(label = "Nama Merchant QRIS", value = qrisMerchant, onValueChange = { qrisMerchant = it })
             SettingInputField(label = "NMID Merchant", value = qrisNmid, onValueChange = { qrisNmid = it })
+            SettingInputField(label = "Terminal ID / Kasir", value = qrisTerminal, onValueChange = { qrisTerminal = it })
         }
 
         SettingSwitchRow(title = "Transfer Bank", subtitle = "Konfirmasi transfer manual rekening bank", checked = isTransfer, onCheckedChange = { isTransfer = it })
@@ -317,6 +322,7 @@ fun PaymentGatewaysSettingsSheet(
                         isQrisEnabled = isQris,
                         qrisMerchantName = qrisMerchant.trim(),
                         qrisNmid = qrisNmid.trim(),
+                        qrisTerminal = qrisTerminal.trim(),
                         isBankTransferEnabled = isTransfer,
                         bcaAccount = bcaAcc.trim(),
                         mandiriAccount = mandiriAcc.trim()
@@ -404,6 +410,7 @@ fun ReceiptAndPrinterSettingsSheet(
 
     var paperSize by remember { mutableStateOf(receiptConfig.paperSize) }
     var showLogo by remember { mutableStateOf(receiptConfig.showLogo) }
+    var showTax by remember { mutableStateOf(receiptConfig.showTax) }
     var headerNote by remember { mutableStateOf(receiptConfig.headerNote) }
     var footerNote by remember { mutableStateOf(receiptConfig.footerNote) }
 
@@ -431,6 +438,7 @@ fun ReceiptAndPrinterSettingsSheet(
 
         Spacer(modifier = Modifier.height(14.dp))
         SettingSwitchRow(title = "Tampilkan Logo di Struk", subtitle = "Cetak logo brand di bagian atas struk", checked = showLogo, onCheckedChange = { showLogo = it })
+        SettingSwitchRow(title = "Tampilkan Rincian Pajak di Struk", subtitle = "Cetak baris rincian PB1 pada struk", checked = showTax, onCheckedChange = { showTax = it })
         SettingInputField(label = "Teks Header Struk", value = headerNote, onValueChange = { headerNote = it })
         SettingInputField(label = "Pesan Kaki (Footer Struk)", value = footerNote, onValueChange = { footerNote = it })
 
@@ -545,6 +553,7 @@ fun ReceiptAndPrinterSettingsSheet(
                     ReceiptCustomizerConfig(
                         paperSize = paperSize,
                         showLogo = showLogo,
+                        showTax = showTax,
                         headerNote = headerNote.trim(),
                         footerNote = footerNote.trim()
                     )

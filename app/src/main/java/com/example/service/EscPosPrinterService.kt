@@ -50,7 +50,9 @@ object EscPosPrinterService {
         storeName: String = "CAFFEINERY POS BY BDS TECH",
         storeAddress: String = "Jl. Senopati No. 42, Jakarta",
         storePhone: String = "Telp: +62 21 555-8900",
-        footerMessage: String = "Thank you for your visit!\nFree Wi-Fi: caffeinery_guest (pass: espresso99)"
+        footerMessage: String = "Thank you for your visit!\nFree Wi-Fi: caffeinery_guest (pass: espresso99)",
+        showTax: Boolean = true,
+        paperWidth: Int = PAPER_WIDTH_CHARS
     ): ByteArray {
         val out = ByteArrayOutputStream()
         val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID"))
@@ -75,9 +77,9 @@ object EscPosPrinterService {
 
         // 3. Invoice & Metadata (Left Aligned)
         out.write(ESC_ALIGN_LEFT)
-        out.write(formatTwoColumns("Invoice:", order.invoiceNumber).toByteArray(Charsets.ISO_8859_1))
-        out.write(formatTwoColumns("Kasir:", "${order.cashierName} (${order.shiftName})").toByteArray(Charsets.ISO_8859_1))
-        out.write(formatTwoColumns("Tipe:", orderTypeLabel).toByteArray(Charsets.ISO_8859_1))
+        out.write(formatTwoColumns("Invoice:", order.invoiceNumber, paperWidth).toByteArray(Charsets.ISO_8859_1))
+        out.write(formatTwoColumns("Kasir:", order.cashierName.ifBlank { "Rian Pratama" }, paperWidth).toByteArray(Charsets.ISO_8859_1))
+        out.write(formatTwoColumns("Tipe:", orderTypeLabel, paperWidth).toByteArray(Charsets.ISO_8859_1))
         out.write(formatTwoColumns("Waktu:", dateStr).toByteArray(Charsets.ISO_8859_1))
         out.write(formatTwoColumns("Pelanggan:", order.customerName).toByteArray(Charsets.ISO_8859_1))
         out.write(formatTwoColumns("Pembayaran:", order.paymentMethod).toByteArray(Charsets.ISO_8859_1))
@@ -114,7 +116,7 @@ object EscPosPrinterService {
         if (order.serviceFeeAmount > 0) {
             out.write(formatTwoColumns("Biaya Layanan (${order.serviceFeePercentage.toInt()}%):", formatIdr(order.serviceFeeAmount)).toByteArray(Charsets.ISO_8859_1))
         }
-        if (order.taxAmount > 0) {
+        if (showTax && order.taxAmount > 0) {
             out.write(formatTwoColumns("Pajak PB1 (${order.taxPercentage.toInt()}%):", formatIdr(order.taxAmount)).toByteArray(Charsets.ISO_8859_1))
         }
 
@@ -193,6 +195,28 @@ object EscPosPrinterService {
             list.add(0, BluetoothPrinterDevice("Virtual ESC/POS 58mm (Simulator)", "00:11:22:33:44:55", isConnected = true))
         }
         return list
+    }
+
+    /**
+     * Checks if the Bluetooth thermal printer is actively connected or ready.
+     * Always returns true for Virtual Simulator ("00:11:22:33:44:55").
+     * For physical devices, validates adapter status and paired/bonded state.
+     */
+    @SuppressLint("MissingPermission")
+    fun isPrinterConnected(context: Context, deviceAddress: String): Boolean {
+        if (deviceAddress.isBlank()) return false
+        if (deviceAddress == "00:11:22:33:44:55") {
+            // Virtual ESC/POS Simulator is always connected and ready
+            return true
+        }
+        return try {
+            val adapter = BluetoothAdapter.getDefaultAdapter() ?: return false
+            if (!adapter.isEnabled) return false
+            val device = adapter.getRemoteDevice(deviceAddress)
+            device.bondState == BluetoothDevice.BOND_BONDED
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /**

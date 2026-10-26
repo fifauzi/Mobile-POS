@@ -485,7 +485,7 @@ fun DateGroupAccordionCard(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "Jam Bayar: $timeStr",
+                                        text = "Jam: $timeStr • ${order.shiftName} - Kasir: ${order.cashierName.ifBlank { "Rian Pratama" }}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = TextDarkMuted

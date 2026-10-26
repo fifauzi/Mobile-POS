@@ -23,6 +23,6 @@ data class OrderEntity(
     val changeAmount: Double = 0.0,
     val paymentStatus: String = "PAID", // PAID, REFUNDED
     val cashierName: String = "Rian Pratama",
-    val shiftName: String = "Shift 1 (Pagi)",
+    val shiftName: String = "Shift 1",
     val notes: String = ""
 )

@@ -29,5 +29,13 @@ data class OrderItemEntity(
     val unitPrice: Double,
     val quantity: Int,
     val itemDiscount: Double = 0.0,
-    val lineTotal: Double
+    val lineTotal: Double,
+    val categoryName: String = "",
+    val variantSize: String = "",
+    val variantType: String = "",
+    val variantBeans: String = "",
+    val variantGrind: String = "",
+    val variantSugar: String = "",
+    val variantAddons: String = "",
+    val variantExtraTotal: Double = 0.0
 )
