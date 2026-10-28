@@ -31,9 +31,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -101,6 +103,7 @@ fun CheckoutModal(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val cartSummary by viewModel.cartSummary.collectAsStateWithLifecycle()
     val orderType by viewModel.orderType.collectAsStateWithLifecycle()
+    val customerName by viewModel.customerName.collectAsStateWithLifecycle()
     val grandTotal = cartSummary.grandTotal
 
     var selectedTab by remember { mutableStateOf(PaymentTab.CASH) }
@@ -127,17 +130,6 @@ fun CheckoutModal(
     val tempInvoiceNumber = remember {
         "INV-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
     }
-    val dynamicPayload = remember(grandTotal, merchantName, qrisNmid, qrisTerminal) {
-        QrisPayloadGenerator.generateDynamicQris(
-            invoiceNumber = tempInvoiceNumber,
-            amount = grandTotal,
-            merchantName = merchantName,
-            nmid = qrisNmid,
-            terminalId = qrisTerminal,
-            merchantCity = "JAKARTA",
-            postalCode = "12190"
-        )
-    }
     val staticPayload = remember(merchantName, qrisNmid, qrisTerminal) {
         QrisPayloadGenerator.generateStaticQris(
             merchantName = merchantName,
@@ -145,6 +137,13 @@ fun CheckoutModal(
             terminalId = qrisTerminal,
             merchantCity = "JAKARTA",
             postalCode = "12190"
+        )
+    }
+    val dynamicPayload = remember(staticPayload, grandTotal, tempInvoiceNumber) {
+        QrisPayloadGenerator.convertToDynamicQRIS(
+            staticString = staticPayload,
+            amount = grandTotal,
+            invoiceNumber = tempInvoiceNumber
         )
     }
     val currentQrisPayload = if (isStaticQrisMode) staticPayload else dynamicPayload
@@ -269,7 +268,70 @@ fun CheckoutModal(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Dedicated Customer Name / Buyer Input Field (Clean Stacked Label)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "NAMA PEMBELI / CUSTOMER",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDarkSecondary,
+                    letterSpacing = 0.6.sp,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                OutlinedTextField(
+                    value = customerName,
+                    onValueChange = { viewModel.setCustomerName(it) },
+                    placeholder = {
+                        Text(
+                            text = "cth. Kak Rudi / Meja 03",
+                            fontSize = 13.sp,
+                            color = TextDarkMuted
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Customer Name",
+                            tint = BrandBlue,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (customerName.isNotBlank()) {
+                            IconButton(
+                                onClick = { viewModel.setCustomerName("") },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Hapus Nama",
+                                    tint = TextDarkMuted,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("checkout_customer_name_input"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = CardBg,
+                        unfocusedContainerColor = CardBg,
+                        focusedBorderColor = BrandBlue,
+                        unfocusedBorderColor = BorderSubtle,
+                        focusedTextColor = TextDarkPrimary,
+                        unfocusedTextColor = TextDarkPrimary
+                    ),
+                    singleLine = true
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Segmented Control
             IosSegmentedControl(

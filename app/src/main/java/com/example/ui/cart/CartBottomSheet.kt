@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Person
@@ -192,32 +193,68 @@ fun CartBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Customer Name / Table Input
-            OutlinedTextField(
-                value = customerName,
-                onValueChange = { viewModel.setCustomerName(it) },
-                placeholder = { Text("Nama Pelanggan / Nomor Meja", fontSize = 13.sp, color = TextDarkMuted) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = BrandBlue,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = CardBg,
-                    unfocusedContainerColor = CardBg,
-                    focusedBorderColor = BrandBlue
-                ),
-                singleLine = true
-            )
+            // Customer Name / Table Input (Clean Stacked Label)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "NAMA PEMBELI / CUSTOMER",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDarkSecondary,
+                    letterSpacing = 0.6.sp,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                OutlinedTextField(
+                    value = customerName,
+                    onValueChange = { viewModel.setCustomerName(it) },
+                    placeholder = {
+                        Text(
+                            text = "cth. Kak Rudi / Meja 03",
+                            fontSize = 13.sp,
+                            color = TextDarkMuted
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Customer Name",
+                            tint = BrandBlue,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (customerName.isNotBlank()) {
+                            IconButton(
+                                onClick = { viewModel.setCustomerName("") },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Hapus Nama",
+                                    tint = TextDarkMuted,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("cart_customer_name_input"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = CardBg,
+                        unfocusedContainerColor = CardBg,
+                        focusedBorderColor = BrandBlue,
+                        unfocusedBorderColor = BorderSubtle,
+                        focusedTextColor = TextDarkPrimary,
+                        unfocusedTextColor = TextDarkPrimary
+                    ),
+                    singleLine = true
+                )
+            }
 
             HorizontalDivider(
                 thickness = 0.5.dp,
@@ -419,12 +456,30 @@ fun CartItemRowClean(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.product.name,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextDarkPrimary
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = item.product.name,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDarkPrimary
+                )
+                if (item.isB2bPriceApplied) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFDBEAFE))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = item.b2bTierLabel ?: "B2B",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1D4ED8)
+                        )
+                    }
+                }
+            }
             if (item.variantSummary.isNotBlank()) {
                 Text(
                     text = item.variantSummary,
@@ -434,7 +489,7 @@ fun CartItemRowClean(
                 )
             }
             Text(
-                text = CurrencyUtils.formatIdr(item.finalUnitPrice),
+                text = "${CurrencyUtils.formatIdr(item.finalUnitPrice)} / pcs",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = BrandBlue,

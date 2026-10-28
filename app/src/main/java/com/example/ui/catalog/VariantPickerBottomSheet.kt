@@ -128,9 +128,27 @@ fun VariantPickerBottomSheet(
         }
     }
 
+    val activeBasePrice by remember(quantity, product) {
+        derivedStateOf {
+            if (product.hasB2bPricing) product.getUnitPriceForQuantity(quantity) else product.basePrice
+        }
+    }
+
+    val isB2bApplied by remember(quantity, product) {
+        derivedStateOf {
+            product.hasB2bPricing && product.isB2bTierApplied(quantity)
+        }
+    }
+
+    val b2bTierLabel by remember(quantity, product) {
+        derivedStateOf {
+            if (product.hasB2bPricing) product.getB2bTierLabel(quantity) else null
+        }
+    }
+
     val unitBaseWithVariants by remember {
         derivedStateOf {
-            product.basePrice + variantDelta
+            activeBasePrice + variantDelta
         }
     }
 
@@ -197,6 +215,28 @@ fun VariantPickerBottomSheet(
                         color = BrandBlue,
                         modifier = Modifier.padding(top = 2.dp)
                     )
+                    if (product.hasB2bPricing && product.b2bTier1Price > 0) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFFDBEAFE))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("🏷️ B2B Tier", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1D4ED8))
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            val tier1Text = "≥${product.b2bTier1MinQty}: ${CurrencyUtils.formatIdrShort(product.b2bTier1Price)}"
+                            val tier2Text = if (product.b2bTier2Price > 0) " • ≥${product.b2bTier2MinQty}: ${CurrencyUtils.formatIdrShort(product.b2bTier2Price)}" else ""
+                            Text(
+                                text = "$tier1Text$tier2Text",
+                                fontSize = 11.sp,
+                                color = BrandBlue,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                     if (product.description.isNotBlank()) {
                         Text(
                             text = product.description,
@@ -357,12 +397,22 @@ fun VariantPickerBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Jumlah Pesanan",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextDarkPrimary
-                )
+                Column {
+                    Text(
+                        text = "Jumlah Pesanan",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDarkPrimary
+                    )
+                    if (isB2bApplied) {
+                        Text(
+                            text = "✨ $b2bTierLabel Aktif (${CurrencyUtils.formatIdr(activeBasePrice)}/unit)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF15803D)
+                        )
+                    }
+                }
 
                 Row(
                     modifier = Modifier

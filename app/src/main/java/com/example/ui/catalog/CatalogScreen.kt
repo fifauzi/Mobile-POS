@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BakeryDining
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Coffee
 import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.Inventory2
@@ -104,6 +105,7 @@ fun CatalogScreen(
     val activeEmployee by viewModel.activeEmployee.collectAsStateWithLifecycle()
     val activeShift by viewModel.activeShift.collectAsStateWithLifecycle()
     val employees by viewModel.employees.collectAsStateWithLifecycle()
+    val wasDraftRestored by viewModel.wasDraftRestored.collectAsStateWithLifecycle()
 
     var isCategoryDropdownOpen by remember { mutableStateOf(false) }
     var isManualInputSheetOpen by remember { mutableStateOf(false) }
@@ -259,11 +261,61 @@ fun CatalogScreen(
                 }
             }
 
+            // 🔄 Draft Restored Notification Banner
+            AnimatedVisibility(
+                visible = wasDraftRestored && cartItems.isNotEmpty()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFEFF6FF))
+                        .border(1.dp, Color(0xFF93C5FD), RoundedCornerShape(12.dp))
+                        .clickable { viewModel.openCartSheet() }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🔄", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "Draft Pesanan Dipulihkan (${cartSummary.totalItemCount} item)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandBlue
+                            )
+                            Text(
+                                text = "Data keranjang dari sesi sebelumnya berhasil dimuat otomatis.",
+                                fontSize = 10.sp,
+                                color = TextDarkSecondary
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = { viewModel.dismissDraftRestoredBanner() },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Tutup",
+                            tint = BrandBlue,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+
             // Search Bar & Category Dropdown (image_53be3fd4.png style)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -271,7 +323,7 @@ fun CatalogScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.setSearchQuery(it) },
-                    placeholder = { Text("Cari produk", fontSize = 13.sp, color = TextDarkMuted) },
+                    placeholder = { Text("Cari produk...", fontSize = 13.sp, color = TextDarkMuted) },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
@@ -294,9 +346,9 @@ fun CatalogScreen(
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp)
+                        .height(54.dp)
                         .testTag("search_input"),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(27.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = CardBg,
                         unfocusedContainerColor = CardBg,
@@ -312,10 +364,10 @@ fun CatalogScreen(
                 Box {
                     Row(
                         modifier = Modifier
-                            .height(48.dp)
-                            .clip(RoundedCornerShape(24.dp))
+                            .height(54.dp)
+                            .clip(RoundedCornerShape(27.dp))
                             .background(CardBg)
-                            .border(1.dp, BorderSubtle, RoundedCornerShape(24.dp))
+                            .border(1.dp, BorderSubtle, RoundedCornerShape(27.dp))
                             .clickable { isCategoryDropdownOpen = true }
                             .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -399,7 +451,7 @@ fun CatalogScreen(
                         start = 20.dp,
                         end = 20.dp,
                         top = 4.dp,
-                        bottom = if (cartSummary.items.isNotEmpty()) 140.dp else 80.dp
+                        bottom = if (cartSummary.items.isNotEmpty()) 80.dp else 20.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.fillMaxSize()
@@ -431,7 +483,7 @@ fun CatalogScreen(
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 75.dp, start = 20.dp, end = 20.dp)
+                .padding(bottom = 12.dp, start = 16.dp, end = 16.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -535,7 +587,7 @@ fun CatalogScreen(
 
 /**
  * Product Card exact reproduction of image_53be3fd4.png:
- * White background, 20.dp rounded corners, thumbnail with "Grosir" badge,
+ * White background, 20.dp rounded corners, thumbnail with conditional "B2B" badge,
  * Title, Price, "Stok X" pill, Wholesale text, and solid blue circular stepper buttons!
  */
 @Composable
@@ -564,7 +616,7 @@ fun ProductCardYokke(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top
             ) {
-                // Product Thumbnail with "Grosir" Badge & 2-letter capital initial avatar
+                // Product Thumbnail with conditional B2B Badge & 2-letter capital initial avatar
                 Box(
                     modifier = Modifier
                         .size(80.dp)
@@ -578,19 +630,21 @@ fun ProductCardYokke(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Green "Grosir" banner in top-left
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(bottomEnd = 10.dp, topStart = 16.dp))
-                            .background(Color(0xFF22C55E))
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "Grosir",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                    // Conditional B2B badge in top-left
+                    if (product.hasB2bPricing) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(bottomEnd = 10.dp, topStart = 16.dp))
+                                .background(Color(0xFF2563EB))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "B2B",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
 
@@ -642,18 +696,25 @@ fun ProductCardYokke(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Subtext & Blue Circular Stepper (image_53be3fd4.png)
+            // Subtext & Blue Circular Stepper
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val wholesalePrice = (product.basePrice * 0.9).coerceAtLeast(0.0)
-                Text(
-                    text = "Grosir (>10) = ${CurrencyUtils.formatIdr(wholesalePrice)}",
-                    fontSize = 12.sp,
-                    color = TextDarkSecondary
-                )
+                if (product.hasB2bPricing && product.b2bTier1Price > 0) {
+                    val tier1Str = "≥${product.b2bTier1MinQty}: ${CurrencyUtils.formatIdrShort(product.b2bTier1Price)}"
+                    val tier2Str = if (product.b2bTier2Price > 0) " • ≥${product.b2bTier2MinQty}: ${CurrencyUtils.formatIdrShort(product.b2bTier2Price)}" else ""
+                    Text(
+                        text = "B2B: $tier1Str$tier2Str",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF2563EB),
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
 
                 // Solid Blue Circular Quantity Adjustment Control
                 Row(

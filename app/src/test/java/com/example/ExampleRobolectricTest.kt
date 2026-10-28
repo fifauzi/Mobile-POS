@@ -368,4 +368,205 @@ class ExampleRobolectricTest {
         assertTrue(receiptText.contains("Budi Kasir"))
         org.junit.Assert.assertFalse(receiptText.contains("Shift 1"))
     }
+
+    @Test
+    fun `convertToDynamicQRIS correctly transforms base static payload with Tag 54 injection for Rp 29400`() {
+        // Base static string for BDS COFFEE CO
+        val baseStatic = QrisPayloadGenerator.OFFICIAL_STATIC_QRIS_PAYLOAD
+        assertTrue(baseStatic.contains("010211")) // Static point of initiation
+
+        val dynamicResult = QrisPayloadGenerator.convertToDynamicQRIS(
+            staticString = baseStatic,
+            amount = 29400.0,
+            invoiceNumber = "INV-29400"
+        )
+
+        assertNotNull(dynamicResult)
+        // 1. Point of initiation converted from 11 to 12
+        assertTrue(dynamicResult.startsWith("000201010212"))
+        org.junit.Assert.assertFalse(dynamicResult.contains("010211"))
+
+        // 2. Tag 54 injected with exact length 05 and value 29400
+        assertTrue(dynamicResult.contains("540529400"))
+
+        // 3. Official credentials preserved
+        assertTrue(dynamicResult.contains("ID1024365195063"))
+        assertTrue(dynamicResult.contains("BDS COFFEE CO"))
+        assertTrue(dynamicResult.contains("A01"))
+
+        // 4. Tag 53 (IDR currency) precedes Tag 54
+        val idx53 = dynamicResult.indexOf("5303360")
+        val idx54 = dynamicResult.indexOf("540529400")
+        assertTrue(idx53 != -1 && idx54 != -1 && idx54 > idx53)
+
+        // 5. CRC16-CCITT checksum valid
+        assertTrue(dynamicResult.contains("6304"))
+        assertEquals(4, dynamicResult.takeLast(4).length)
+        assertTrue(QrisPayloadGenerator.isValidQrisPayload(dynamicResult))
+    }
+
+    @Test
+    fun `order entity and receipts correctly map customer name under Pelanggan`() {
+        val order = OrderEntity(
+            invoiceNumber = "INV-004",
+            timestamp = System.currentTimeMillis(),
+            customerName = "Kak Budi - Meja 03",
+            cashierName = "Rian Kasir",
+            subtotal = 40000.0,
+            grandTotal = 40000.0,
+            paymentMethod = "CASH"
+        )
+        val items = listOf(
+            OrderItemEntity(
+                orderInvoiceNumber = "INV-004",
+                productId = 1,
+                productName = "Americano",
+                sku = "CF-002",
+                basePrice = 40000.0,
+                unitPrice = 40000.0,
+                quantity = 1,
+                lineTotal = 40000.0
+            )
+        )
+        val bytes = EscPosPrinterService.buildReceiptBytes(order, items)
+        val receiptText = String(bytes, Charsets.ISO_8859_1)
+        assertTrue(receiptText.contains("Pelanggan:"))
+        assertTrue(receiptText.contains("Kak Budi - Meja 03"))
+
+        val message = com.example.service.PdfReceiptService.buildWhatsAppReceiptMessage(order, items)
+        assertTrue(message.contains("👤 *Pelanggan:* Kak Budi - Meja 03"))
+    }
+
+    @Test
+    fun `tiered B2B pricing calculates correct dynamic unit price and tier labels`() {
+        val b2bProduct = com.example.data.local.model.ProductEntity(
+            id = 201,
+            sku = "B2B-001",
+            name = "Roasted Beans House Blend 1kg",
+            categoryId = "roasted_beans",
+            basePrice = 250000.0,
+            costPrice = 120000.0,
+            stockQuantity = 100,
+            hasB2bPricing = true,
+            b2bTier1MinQty = 5,
+            b2bTier1Price = 220000.0,
+            b2bTier2MinQty = 10,
+            b2bTier2Price = 200000.0
+        )
+
+        // Case 1: Standard retail qty < Tier 1
+        val cartRetail = com.example.domain.model.CartItem(
+            product = b2bProduct,
+            quantity = 2
+        )
+        assertEquals(250000.0, cartRetail.finalUnitPrice, 0.01)
+        assertEquals(500000.0, cartRetail.lineTotal, 0.01)
+        org.junit.Assert.assertFalse(cartRetail.isB2bPriceApplied)
+        org.junit.Assert.assertNull(cartRetail.b2bTierLabel)
+
+        // Case 2: Tier 1 (qty = 5)
+        val cartTier1 = com.example.domain.model.CartItem(
+            product = b2bProduct,
+            quantity = 5
+        )
+        assertEquals(220000.0, cartTier1.finalUnitPrice, 0.01)
+        assertEquals(1100000.0, cartTier1.lineTotal, 0.01)
+        assertTrue(cartTier1.isB2bPriceApplied)
+        assertEquals("B2B Tier 1 (≥5)", cartTier1.b2bTierLabel)
+
+        // Case 3: Tier 2 (qty = 10)
+        val cartTier2 = com.example.domain.model.CartItem(
+            product = b2bProduct,
+            quantity = 10
+        )
+        assertEquals(200000.0, cartTier2.finalUnitPrice, 0.01)
+        assertEquals(2000000.0, cartTier2.lineTotal, 0.01)
+        assertTrue(cartTier2.isB2bPriceApplied)
+        assertEquals("B2B Tier 2 (≥10)", cartTier2.b2bTierLabel)
+
+        // Case 4: Non-B2B product remains strictly standard retail even at high quantity
+        val standardProduct = com.example.data.local.model.ProductEntity(
+            id = 202,
+            sku = "STD-001",
+            name = "Croissant Butter",
+            categoryId = "pastry",
+            basePrice = 28000.0,
+            costPrice = 12000.0,
+            stockQuantity = 50,
+            hasB2bPricing = false
+        )
+        val cartStandard = com.example.domain.model.CartItem(
+            product = standardProduct,
+            quantity = 25
+        )
+        assertEquals(28000.0, cartStandard.finalUnitPrice, 0.01)
+        assertEquals(700000.0, cartStandard.lineTotal, 0.01)
+        org.junit.Assert.assertFalse(cartStandard.isB2bPriceApplied)
+        org.junit.Assert.assertNull(cartStandard.b2bTierLabel)
+    }
+
+    @Test
+    fun `database seeder populates catalog, b2b items, and orders on empty db and is idempotent`() = kotlinx.coroutines.runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, com.example.data.local.AppDatabase::class.java).build()
+        val dao = db.posDao()
+
+        assertEquals(0, dao.getProductCount())
+        assertEquals(0, dao.getCategoryCount())
+        assertEquals(0, dao.getOrderCount())
+
+        // First seed
+        com.example.data.local.DatabaseSeeder.seedIfEmpty(dao)
+
+        val prodCount = dao.getProductCount()
+        val catCount = dao.getCategoryCount()
+        val orderCount = dao.getOrderCount()
+
+        assertTrue(prodCount >= 15)
+        assertEquals(5, catCount)
+        assertTrue(orderCount >= 3)
+
+        // Check B2B beans exist
+        val prods = dao.getAllProductsSync()
+        val b2bBeans = prods.find { it.name.contains("House Blend Beans", ignoreCase = true) }
+        assertNotNull(b2bBeans)
+        assertTrue(b2bBeans!!.hasB2bPricing)
+        assertEquals(5, b2bBeans.b2bTier1MinQty)
+        assertEquals(85000.0, b2bBeans.b2bTier1Price, 0.01)
+
+        // Second seed (idempotent - should not duplicate)
+        com.example.data.local.DatabaseSeeder.seedIfEmpty(dao)
+        assertEquals(prodCount, dao.getProductCount())
+        assertEquals(catCount, dao.getCategoryCount())
+        assertEquals(orderCount, dao.getOrderCount())
+
+        db.close()
+    }
+
+    @Test
+    fun `cart draft persistence and recovery in SettingsStorageService`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val service = com.example.data.local.SettingsStorageService(context)
+
+        service.clearActiveCartDraft()
+        org.junit.Assert.assertNull(service.loadActiveCartDraft())
+
+        val sampleJson = """[{"productId":1,"productName":"BDS Aren Latte","quantity":2}]"""
+        service.saveActiveCartDraft(
+            itemsJson = sampleJson,
+            customerName = "Kak Rudi / Meja 03",
+            orderType = "DINE_IN",
+            discountType = "NONE",
+            discountValue = 0.0
+        )
+
+        val loaded = service.loadActiveCartDraft()
+        assertNotNull(loaded)
+        assertEquals("Kak Rudi / Meja 03", loaded!!.customerName)
+        assertEquals("DINE_IN", loaded.orderType)
+        assertEquals(sampleJson, loaded.itemsJson)
+
+        service.clearActiveCartDraft()
+        org.junit.Assert.assertNull(service.loadActiveCartDraft())
+    }
 }

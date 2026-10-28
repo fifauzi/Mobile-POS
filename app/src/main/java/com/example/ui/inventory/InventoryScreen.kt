@@ -56,6 +56,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -386,6 +388,16 @@ fun InventoryItemCardClean(
                             fontSize = 12.sp,
                             color = TextDarkSecondary
                         )
+                        if (product.hasB2bPricing && product.b2bTier1Price > 0) {
+                            val tier1Text = "≥${product.b2bTier1MinQty}: ${CurrencyUtils.formatIdrShort(product.b2bTier1Price)}"
+                            val tier2Text = if (product.b2bTier2Price > 0) ", ≥${product.b2bTier2MinQty}: ${CurrencyUtils.formatIdrShort(product.b2bTier2Price)}" else ""
+                            Text(
+                                text = "🏷️ B2B: $tier1Text$tier2Text",
+                                fontSize = 11.sp,
+                                color = BrandBlue,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                         if (product.costPrice > 0) {
                             Text(
                                 text = "HPP: ${CurrencyUtils.formatIdr(product.costPrice)} • Untung: ${CurrencyUtils.formatIdr(product.basePrice - product.costPrice)}",
@@ -489,6 +501,12 @@ fun AddEditProductSheetClean(
     var stockQuantityStr by remember { mutableStateOf(initialProduct?.stockQuantity?.toString() ?: "50") }
     var unit by remember { mutableStateOf(initialProduct?.unit ?: "cup") }
     var description by remember { mutableStateOf(initialProduct?.description ?: "") }
+
+    var hasB2bPricing by remember { mutableStateOf(initialProduct?.hasB2bPricing ?: false) }
+    var b2bTier1MinQtyStr by remember { mutableStateOf(initialProduct?.b2bTier1MinQty?.toString() ?: "5") }
+    var b2bTier1PriceStr by remember { mutableStateOf(if ((initialProduct?.b2bTier1Price ?: 0.0) > 0) initialProduct!!.b2bTier1Price.toLong().toString() else "") }
+    var b2bTier2MinQtyStr by remember { mutableStateOf(initialProduct?.b2bTier2MinQty?.toString() ?: "10") }
+    var b2bTier2PriceStr by remember { mutableStateOf(if ((initialProduct?.b2bTier2Price ?: 0.0) > 0) initialProduct!!.b2bTier2Price.toLong().toString() else "") }
 
     var isCategoryDropdownOpen by remember { mutableStateOf(false) }
 
@@ -664,6 +682,186 @@ fun AddEditProductSheetClean(
                 )
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // B2B Pricing Toggle Card
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (hasB2bPricing) Color(0xFFEFF6FF) else SurfaceSubtle)
+                    .border(1.dp, if (hasB2bPricing) BrandBlue else BorderSubtle, RoundedCornerShape(14.dp))
+                    .clickable { hasB2bPricing = !hasB2bPricing }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "🏷️ Gunakan Harga B2B / Grosir",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (hasB2bPricing) BrandBlue else TextDarkPrimary
+                        )
+                        if (hasB2bPricing) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(BrandBlue)
+                                    .padding(horizontal = 6.dp, vertical = 1.dp)
+                            ) {
+                                Text("B2B AKTIF", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
+                    Text(
+                        text = "Aktifkan potongan harga berjenjang untuk pembelian B2B / pesanan partai",
+                        fontSize = 11.sp,
+                        color = TextDarkSecondary,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+
+                Switch(
+                    checked = hasB2bPricing,
+                    onCheckedChange = { hasB2bPricing = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = BrandBlue
+                    )
+                )
+            }
+
+            // Tiered B2B Inputs (Conditional)
+            AnimatedVisibility(visible = hasB2bPricing) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFF8FAFC))
+                        .border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(14.dp))
+                        .padding(14.dp)
+                ) {
+                    Text(
+                        text = "Pengaturan Harga Berjenjang (Tiered B2B Pricing)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandBlue
+                    )
+                    Text(
+                        text = "Harga satuan otomatis berubah di kasir saat jumlah pesanan memenuhi batas minimum B2B.",
+                        fontSize = 10.sp,
+                        color = TextDarkSecondary,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+
+                    // Tier 1
+                    Text(
+                        text = "TIER 1 (B2B BULK)",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDarkSecondary,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = b2bTier1MinQtyStr,
+                            onValueChange = { b2bTier1MinQtyStr = it.filter { ch -> ch.isDigit() } },
+                            label = { Text("Min. Qty Tier 1") },
+                            placeholder = { Text("5") },
+                            suffix = { Text("pcs", fontSize = 11.sp, color = TextDarkMuted) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedBorderColor = BrandBlue,
+                                unfocusedBorderColor = BorderSubtle
+                            ),
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            value = b2bTier1PriceStr,
+                            onValueChange = { b2bTier1PriceStr = it.filter { ch -> ch.isDigit() } },
+                            label = { Text("Harga Satuan Tier 1") },
+                            prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = BrandBlue) },
+                            placeholder = { Text("cth. 30000") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1.3f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedBorderColor = BrandBlue,
+                                unfocusedBorderColor = BorderSubtle
+                            ),
+                            singleLine = true
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Tier 2
+                    Text(
+                        text = "TIER 2 (B2B SUPER BULK)",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDarkSecondary,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = b2bTier2MinQtyStr,
+                            onValueChange = { b2bTier2MinQtyStr = it.filter { ch -> ch.isDigit() } },
+                            label = { Text("Min. Qty Tier 2") },
+                            placeholder = { Text("10") },
+                            suffix = { Text("pcs", fontSize = 11.sp, color = TextDarkMuted) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedBorderColor = BrandBlue,
+                                unfocusedBorderColor = BorderSubtle
+                            ),
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            value = b2bTier2PriceStr,
+                            onValueChange = { b2bTier2PriceStr = it.filter { ch -> ch.isDigit() } },
+                            label = { Text("Harga Satuan Tier 2") },
+                            prefix = { Text("Rp ", fontWeight = FontWeight.Bold, color = BrandBlue) },
+                            placeholder = { Text("cth. 27000") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1.3f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedBorderColor = BrandBlue,
+                                unfocusedBorderColor = BorderSubtle
+                            ),
+                            singleLine = true
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedTextField(
@@ -773,8 +971,13 @@ fun AddEditProductSheetClean(
                         jsonArray.put(grpObj)
                     }
 
+                    val tier1Qty = b2bTier1MinQtyStr.toIntOrNull() ?: 5
+                    val tier1Price = b2bTier1PriceStr.toDoubleOrNull() ?: 0.0
+                    val tier2Qty = b2bTier2MinQtyStr.toIntOrNull() ?: 10
+                    val tier2Price = b2bTier2PriceStr.toDoubleOrNull() ?: 0.0
+
                     val updated = (initialProduct ?: ProductEntity(
-                        sku = sku,
+                        sku = sku.trim(),
                         name = name.trim(),
                         categoryId = selectedCategoryId,
                         basePrice = price,
@@ -782,7 +985,12 @@ fun AddEditProductSheetClean(
                         stockQuantity = stock,
                         unit = unit,
                         description = description,
-                        variantsJson = jsonArray.toString()
+                        variantsJson = jsonArray.toString(),
+                        hasB2bPricing = hasB2bPricing,
+                        b2bTier1MinQty = tier1Qty,
+                        b2bTier1Price = tier1Price,
+                        b2bTier2MinQty = tier2Qty,
+                        b2bTier2Price = tier2Price
                     )).copy(
                         name = name.trim(),
                         sku = sku.trim(),
@@ -792,7 +1000,12 @@ fun AddEditProductSheetClean(
                         stockQuantity = stock,
                         unit = unit,
                         description = description,
-                        variantsJson = jsonArray.toString()
+                        variantsJson = jsonArray.toString(),
+                        hasB2bPricing = hasB2bPricing,
+                        b2bTier1MinQty = tier1Qty,
+                        b2bTier1Price = tier1Price,
+                        b2bTier2MinQty = tier2Qty,
+                        b2bTier2Price = tier2Price
                     )
                     onSave(updated)
                 },

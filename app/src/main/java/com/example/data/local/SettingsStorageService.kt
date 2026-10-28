@@ -42,6 +42,7 @@ class SettingsStorageService(context: Context) {
         private const val KEY_ACTIVE_EMPLOYEE = "key_active_employee"
         private const val KEY_ACTIVE_SHIFT = "key_active_shift"
         private const val KEY_SELECTED_PRINTER = "key_selected_printer"
+        private const val KEY_CART_DRAFT = "key_cart_draft"
         private const val KEY_IS_INITIALIZED = "key_is_initialized"
 
         fun normalizeShift(raw: String): String {
@@ -353,5 +354,57 @@ class SettingsStorageService(context: Context) {
 
     fun loadSelectedPrinter(): String {
         return prefs.getString(KEY_SELECTED_PRINTER, "") ?: ""
+    }
+
+    // ==========================================
+    // 8. CART & DRAFT RECOVERY
+    // ==========================================
+    data class CartDraft(
+        val itemsJson: String,
+        val customerName: String,
+        val orderType: String,
+        val discountType: String,
+        val discountValue: Double,
+        val timestamp: Long = System.currentTimeMillis()
+    )
+
+    fun saveActiveCartDraft(
+        itemsJson: String,
+        customerName: String,
+        orderType: String,
+        discountType: String,
+        discountValue: Double
+    ) {
+        val json = JSONObject().apply {
+            put("itemsJson", itemsJson)
+            put("customerName", customerName)
+            put("orderType", orderType)
+            put("discountType", discountType)
+            put("discountValue", discountValue)
+            put("timestamp", System.currentTimeMillis())
+        }
+        prefs.edit().putString(KEY_CART_DRAFT, json.toString()).apply()
+    }
+
+    fun loadActiveCartDraft(): CartDraft? {
+        val raw = prefs.getString(KEY_CART_DRAFT, null) ?: return null
+        return try {
+            val json = JSONObject(raw)
+            CartDraft(
+                itemsJson = json.optString("itemsJson", "[]"),
+                customerName = json.optString("customerName", ""),
+                orderType = json.optString("orderType", "DINE_IN"),
+                discountType = json.optString("discountType", "NONE"),
+                discountValue = json.optDouble("discountValue", 0.0),
+                timestamp = json.optLong("timestamp", System.currentTimeMillis())
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun clearActiveCartDraft() {
+        prefs.edit().remove(KEY_CART_DRAFT).apply()
     }
 }

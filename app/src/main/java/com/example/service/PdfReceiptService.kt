@@ -175,7 +175,7 @@ object PdfReceiptService {
         currentY = drawTwoColumnRow(canvas, "No. Invoice", order.invoiceNumber, margin, rightMargin, currentY, textPaint, textPaint)
         currentY = drawTwoColumnRow(canvas, "Tipe Pesanan", orderTypeLabel, margin, rightMargin, currentY, textPaint, boldPaint)
         currentY = drawTwoColumnRow(canvas, "Waktu Transaksi", dateStr, margin, rightMargin, currentY, textPaint, textPaint)
-        currentY = drawTwoColumnRow(canvas, "Pelanggan", order.customerName.ifEmpty { "Walk-in Guest" }, margin, rightMargin, currentY, textPaint, textPaint)
+        currentY = drawTwoColumnRow(canvas, "Pelanggan", order.customerName.ifBlank { "Pelanggan Walk-in" }, margin, rightMargin, currentY, textPaint, textPaint)
         currentY = drawTwoColumnRow(canvas, "Kasir", cashierName, margin, rightMargin, currentY, textPaint, boldPaint)
         currentY = drawTwoColumnRow(canvas, "Metode Bayar", order.paymentMethod, margin, rightMargin, currentY, textPaint, textPaint)
         currentY += 4f
@@ -393,7 +393,7 @@ object PdfReceiptService {
         sb.appendLine("👨‍🍳 *Kasir:* $cashierName")
         sb.appendLine("🍽️ *Tipe:* $orderTypeStr")
         sb.appendLine("📅 *Waktu:* $dateStr")
-        sb.appendLine("👤 *Pelanggan:* ${order.customerName.ifEmpty { "Walk-in Guest" }}")
+        sb.appendLine("👤 *Pelanggan:* ${order.customerName.ifBlank { "Pelanggan Walk-in" }}")
         sb.appendLine("💳 *Metode:* ${order.paymentMethod} (LUNAS)")
         sb.appendLine("━━━━━━━━━━━━━━━━━━")
         sb.appendLine("*Rincian Pesanan:*")

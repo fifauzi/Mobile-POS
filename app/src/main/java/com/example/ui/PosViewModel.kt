@@ -62,10 +62,23 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: PosRepository
     private val settingsStorage: SettingsStorageService = SettingsStorageService(application)
 
+    // Draft Restoration Banner
+    private val _wasDraftRestored = MutableStateFlow(false)
+    val wasDraftRestored: StateFlow<Boolean> = _wasDraftRestored.asStateFlow()
+
+    fun dismissDraftRestoredBanner() {
+        _wasDraftRestored.value = false
+    }
+
     init {
-        val database = AppDatabase.getDatabase(application, viewModelScope)
+        val database = AppDatabase.getDatabase(application)
         repository = PosRepository(database.posDao())
         settingsStorage.initDefaultsIfEmpty()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            com.example.data.local.DatabaseSeeder.seedIfEmpty(database.posDao())
+            restoreActiveCartDraft()
+        }
     }
 
     // Active Navigation Tab
@@ -150,11 +163,12 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     private val _orderDiscountValue = MutableStateFlow(0.0)
     val orderDiscountValue: StateFlow<Double> = _orderDiscountValue.asStateFlow()
 
-    private val _customerName = MutableStateFlow("Guest")
+    private val _customerName = MutableStateFlow("")
     val customerName: StateFlow<String> = _customerName.asStateFlow()
 
     fun setCustomerName(name: String) {
         _customerName.value = name
+        persistCurrentCartState()
     }
 
     private val _orderType = MutableStateFlow("DINE_IN") // "DINE_IN" or "TAKEAWAY"
@@ -162,6 +176,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setOrderType(type: String) {
         _orderType.value = type
+        persistCurrentCartState()
     }
 
     // Business Settings Management (Persisted via SettingsStorageService)
@@ -388,6 +403,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         }
         _cartItems.value = current
         closeVariantPicker()
+        persistCurrentCartState()
     }
 
     fun updateCartItemQuantity(cartItemId: String, delta: Int) {
@@ -402,24 +418,28 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 current[index] = item.copy(quantity = newQty)
             }
             _cartItems.value = current
+            persistCurrentCartState()
         }
     }
 
     fun removeCartItem(cartItemId: String) {
         _cartItems.value = _cartItems.value.filter { it.cartItemId != cartItemId }
+        persistCurrentCartState()
     }
 
     fun setOrderDiscount(type: DiscountType, value: Double) {
         _orderDiscountType.value = type
         _orderDiscountValue.value = value
+        persistCurrentCartState()
     }
 
     fun clearCart() {
         _cartItems.value = emptyList()
         _orderDiscountType.value = DiscountType.NONE
         _orderDiscountValue.value = 0.0
-        _customerName.value = "Guest"
+        _customerName.value = ""
         _orderType.value = "DINE_IN"
+        settingsStorage.clearActiveCartDraft()
     }
 
     // Process Sale Checkout
@@ -439,7 +459,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         val order = OrderEntity(
             invoiceNumber = invoice,
             timestamp = now,
-            customerName = _customerName.value.ifBlank { "Walk-in Guest" },
+            customerName = _customerName.value.trim().ifBlank { "Pelanggan Walk-in" },
             orderType = _orderType.value,
             subtotal = summary.subtotal,
             itemDiscountTotal = summary.itemDiscountTotal,
@@ -474,14 +494,23 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             val varAddons = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Add", ignoreCase = true) }
                 ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
 
+            val b2bTag = if (cartItem.isB2bPriceApplied) " [B2B]" else ""
+            val displayName = cartItem.product.name + b2bTag
+            val itemVariantSummary = if (cartItem.isB2bPriceApplied) {
+                val tierStr = cartItem.b2bTierLabel ?: "Harga B2B"
+                if (cartItem.variantSummary == "Standard" || cartItem.variantSummary.isBlank()) tierStr else "${cartItem.variantSummary}, $tierStr"
+            } else {
+                cartItem.variantSummary
+            }
+
             OrderItemEntity(
                 orderInvoiceNumber = invoice,
                 productId = cartItem.product.id,
-                productName = cartItem.product.name,
+                productName = displayName,
                 sku = cartItem.product.sku,
-                basePrice = cartItem.product.basePrice,
+                basePrice = cartItem.activeBasePrice,
                 costPrice = cartItem.product.costPrice,
-                variantSummary = cartItem.variantSummary,
+                variantSummary = itemVariantSummary,
                 unitPrice = cartItem.finalUnitPrice,
                 quantity = cartItem.quantity,
                 itemDiscount = cartItem.totalDiscountAmount,
@@ -662,35 +691,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         val now = System.currentTimeMillis()
         val billNum = "OB-" + SimpleDateFormat("HHmmss", Locale.US).format(Date(now))
 
-        val jsonArray = JSONArray()
-        for (item in items) {
-            val obj = JSONObject().apply {
-                put("productId", item.product.id)
-                put("productName", item.product.name)
-                put("productPrice", item.product.basePrice)
-                put("productCost", item.product.costPrice)
-                put("productCategory", item.product.categoryId)
-                put("productUnit", item.product.unit)
-                put("quantity", item.quantity)
-                put("discountType", item.discountType.name)
-                put("discountValue", item.discountValue)
-                put("notes", item.notes)
-
-                val variantsObj = JSONObject()
-                for ((groupName, options) in item.selectedVariants) {
-                    val optsArray = JSONArray()
-                    for (opt in options) {
-                        val o = JSONObject()
-                        o.put("name", opt.name)
-                        o.put("price", opt.priceAdjustment)
-                        optsArray.put(o)
-                    }
-                    variantsObj.put(groupName, optsArray)
-                }
-                put("selectedVariants", variantsObj)
-            }
-            jsonArray.put(obj)
-        }
+        val jsonArray = serializeCartItemsToJson(items)
 
         val openBill = OpenBillEntity(
             billNumber = billNum,
@@ -727,12 +728,19 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
+                    val cId = obj.optString("cartItemId", UUID.randomUUID().toString())
                     val pId = obj.optLong("productId", 0L)
                     val pName = obj.optString("productName", "Produk")
                     val pPrice = obj.optDouble("productPrice", 0.0)
                     val pCost = obj.optDouble("productCost", 0.0)
                     val pCat = obj.optString("productCategory", "coffee")
+                    val pStock = obj.optInt("productStock", 999)
                     val pUnit = obj.optString("productUnit", "cup")
+                    val hasB2b = obj.optBoolean("hasB2bPricing", false)
+                    val b2bT1Qty = obj.optInt("b2bTier1MinQty", 5)
+                    val b2bT1Price = obj.optDouble("b2bTier1Price", 0.0)
+                    val b2bT2Qty = obj.optInt("b2bTier2MinQty", 10)
+                    val b2bT2Price = obj.optDouble("b2bTier2Price", 0.0)
                     val qty = obj.optInt("quantity", 1)
                     val dTypeStr = obj.optString("discountType", "NONE")
                     val dVal = obj.optDouble("discountValue", 0.0)
@@ -745,8 +753,13 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                         categoryId = pCat,
                         basePrice = pPrice,
                         costPrice = pCost,
-                        stockQuantity = 999,
-                        unit = pUnit
+                        stockQuantity = pStock,
+                        unit = pUnit,
+                        hasB2bPricing = hasB2b,
+                        b2bTier1MinQty = b2bT1Qty,
+                        b2bTier1Price = b2bT1Price,
+                        b2bTier2MinQty = b2bT2Qty,
+                        b2bTier2Price = b2bT2Price
                     )
 
                     val variantsMap = mutableMapOf<String, List<VariantOption>>()
@@ -774,6 +787,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
                     restoredItems.add(
                         CartItem(
+                            cartItemId = cId,
                             product = product,
                             selectedVariants = variantsMap,
                             quantity = qty,
@@ -793,6 +807,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 _cartItems.value = restoredItems
                 _orderType.value = bill.orderType
                 _customerName.value = if (bill.tableNumber.isNotBlank()) "${bill.customerName} (${bill.tableNumber})" else bill.customerName
+                persistCurrentCartState()
                 openCartSheet()
             }
         }
@@ -801,6 +816,164 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteOpenBill(billId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteOpenBill(billId)
+        }
+    }
+
+    // ==========================================
+    // 💾 CART STATE PERSISTENCE & RESTORATION
+    // ==========================================
+    private fun serializeCartItemsToJson(items: List<CartItem>): JSONArray {
+        val jsonArray = JSONArray()
+        for (item in items) {
+            val obj = JSONObject().apply {
+                put("cartItemId", item.cartItemId)
+                put("productId", item.product.id)
+                put("sku", item.product.sku)
+                put("productName", item.product.name)
+                put("productPrice", item.product.basePrice)
+                put("productCost", item.product.costPrice)
+                put("productCategory", item.product.categoryId)
+                put("productStock", item.product.stockQuantity)
+                put("productUnit", item.product.unit)
+                put("hasB2bPricing", item.product.hasB2bPricing)
+                put("b2bTier1MinQty", item.product.b2bTier1MinQty)
+                put("b2bTier1Price", item.product.b2bTier1Price)
+                put("b2bTier2MinQty", item.product.b2bTier2MinQty)
+                put("b2bTier2Price", item.product.b2bTier2Price)
+                put("quantity", item.quantity)
+                put("discountType", item.discountType.name)
+                put("discountValue", item.discountValue)
+                put("notes", item.notes)
+
+                val variantsObj = JSONObject()
+                for ((groupName, options) in item.selectedVariants) {
+                    val optsArray = JSONArray()
+                    for (opt in options) {
+                        val o = JSONObject().apply {
+                            put("name", opt.name)
+                            put("price", opt.priceAdjustment)
+                        }
+                        optsArray.put(o)
+                    }
+                    variantsObj.put(groupName, optsArray)
+                }
+                put("selectedVariants", variantsObj)
+            }
+            jsonArray.put(obj)
+        }
+        return jsonArray
+    }
+
+    private fun persistCurrentCartState() {
+        val items = _cartItems.value
+        if (items.isEmpty()) {
+            settingsStorage.clearActiveCartDraft()
+        } else {
+            val jsonArray = serializeCartItemsToJson(items)
+            settingsStorage.saveActiveCartDraft(
+                itemsJson = jsonArray.toString(),
+                customerName = _customerName.value,
+                orderType = _orderType.value,
+                discountType = _orderDiscountType.value.name,
+                discountValue = _orderDiscountValue.value
+            )
+        }
+    }
+
+    private suspend fun restoreActiveCartDraft() {
+        val draft = settingsStorage.loadActiveCartDraft() ?: return
+        if (draft.itemsJson.isBlank() || draft.itemsJson == "[]") return
+
+        try {
+            val array = JSONArray(draft.itemsJson)
+            if (array.length() == 0) return
+
+            val liveProducts = repository.getAllProductsSync().associateBy { it.id }
+            val restoredItems = mutableListOf<CartItem>()
+
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val cId = obj.optString("cartItemId", UUID.randomUUID().toString())
+                val pId = obj.optLong("productId", 0L)
+                val sku = obj.optString("sku", "ITEM-$pId")
+                val pName = obj.optString("productName", "Produk")
+                val pPrice = obj.optDouble("productPrice", 0.0)
+                val pCost = obj.optDouble("productCost", 0.0)
+                val pCat = obj.optString("productCategory", "coffee")
+                val pStock = obj.optInt("productStock", 999)
+                val pUnit = obj.optString("productUnit", "cup")
+                val hasB2b = obj.optBoolean("hasB2bPricing", false)
+                val b2bT1Qty = obj.optInt("b2bTier1MinQty", 5)
+                val b2bT1Price = obj.optDouble("b2bTier1Price", 0.0)
+                val b2bT2Qty = obj.optInt("b2bTier2MinQty", 10)
+                val b2bT2Price = obj.optDouble("b2bTier2Price", 0.0)
+                val qty = obj.optInt("quantity", 1)
+                val dTypeStr = obj.optString("discountType", "NONE")
+                val dVal = obj.optDouble("discountValue", 0.0)
+                val notes = obj.optString("notes", "")
+
+                val product = liveProducts[pId] ?: ProductEntity(
+                    id = pId,
+                    sku = sku,
+                    name = pName,
+                    categoryId = pCat,
+                    basePrice = pPrice,
+                    costPrice = pCost,
+                    stockQuantity = pStock,
+                    unit = pUnit,
+                    hasB2bPricing = hasB2b,
+                    b2bTier1MinQty = b2bT1Qty,
+                    b2bTier1Price = b2bT1Price,
+                    b2bTier2MinQty = b2bT2Qty,
+                    b2bTier2Price = b2bT2Price
+                )
+
+                val variantsMap = mutableMapOf<String, List<VariantOption>>()
+                val vObj = obj.optJSONObject("selectedVariants")
+                if (vObj != null) {
+                    val keys = vObj.keys()
+                    while (keys.hasNext()) {
+                        val k = keys.next()
+                        val oArr = vObj.optJSONArray(k)
+                        val oList = mutableListOf<VariantOption>()
+                        if (oArr != null) {
+                            for (j in 0 until oArr.length()) {
+                                val itemObj = oArr.getJSONObject(j)
+                                oList.add(
+                                    VariantOption(
+                                        name = itemObj.optString("name", ""),
+                                        priceAdjustment = itemObj.optDouble("price", 0.0)
+                                    )
+                                )
+                            }
+                        }
+                        variantsMap[k] = oList
+                    }
+                }
+
+                restoredItems.add(
+                    CartItem(
+                        cartItemId = cId,
+                        product = product,
+                        selectedVariants = variantsMap,
+                        quantity = qty,
+                        discountType = try { DiscountType.valueOf(dTypeStr) } catch (_: Exception) { DiscountType.NONE },
+                        discountValue = dVal,
+                        notes = notes
+                    )
+                )
+            }
+
+            if (restoredItems.isNotEmpty()) {
+                _cartItems.value = restoredItems
+                _customerName.value = draft.customerName
+                _orderType.value = draft.orderType
+                _orderDiscountType.value = try { DiscountType.valueOf(draft.discountType) } catch (_: Exception) { DiscountType.NONE }
+                _orderDiscountValue.value = draft.discountValue
+                _wasDraftRestored.value = true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

@@ -77,4 +77,16 @@ class PosRepository(private val posDao: PosDao) {
     suspend fun deleteOpenBill(id: String) {
         posDao.deleteOpenBillById(id)
     }
+
+    suspend fun getCategoryCount(): Int = posDao.getCategoryCount()
+    suspend fun getProductCount(): Int = posDao.getProductCount()
+    suspend fun getOrderCount(): Int = posDao.getOrderCount()
+    suspend fun getVariantGroupCount(): Int = posDao.getVariantGroupCount()
+    suspend fun getAllProductsSync(): List<ProductEntity> = posDao.getAllProductsSync()
+
+    suspend fun insertCategories(categories: List<CategoryEntity>) = posDao.insertCategories(categories)
+    suspend fun insertProducts(products: List<ProductEntity>) = posDao.insertProducts(products)
+    suspend fun insertVariantGroups(groups: List<VariantGroupEntity>) = posDao.insertVariantGroups(groups)
+    suspend fun insertOrders(orders: List<OrderEntity>) = posDao.insertOrders(orders)
+    suspend fun insertOrderItems(items: List<OrderItemEntity>) = posDao.insertOrderItems(items)
 }

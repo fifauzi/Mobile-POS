@@ -81,7 +81,7 @@ object EscPosPrinterService {
         out.write(formatTwoColumns("Kasir:", order.cashierName.ifBlank { "Rian Pratama" }, paperWidth).toByteArray(Charsets.ISO_8859_1))
         out.write(formatTwoColumns("Tipe:", orderTypeLabel, paperWidth).toByteArray(Charsets.ISO_8859_1))
         out.write(formatTwoColumns("Waktu:", dateStr).toByteArray(Charsets.ISO_8859_1))
-        out.write(formatTwoColumns("Pelanggan:", order.customerName).toByteArray(Charsets.ISO_8859_1))
+        out.write(formatTwoColumns("Pelanggan:", order.customerName.ifBlank { "Pelanggan Walk-in" }, paperWidth).toByteArray(Charsets.ISO_8859_1))
         out.write(formatTwoColumns("Pembayaran:", order.paymentMethod).toByteArray(Charsets.ISO_8859_1))
         out.write(solidLine().toByteArray(Charsets.ISO_8859_1))
 

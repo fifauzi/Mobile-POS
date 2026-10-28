@@ -4,7 +4,8 @@ import java.util.Locale
 
 /**
  * Official EMVCo QRIS Merchant Presented Mode (MPM) Generator for BDS Coffee Co.
- * Generates official static and dynamic QRIS payloads compliant with Bank Indonesia and ASPI standards.
+ * Implements standard TLV parsing, dynamic amount injection (Tag 54),
+ * and CRC16-CCITT (0x1021) recalculation.
  */
 object QrisPayloadGenerator {
 
@@ -15,11 +16,121 @@ object QrisPayloadGenerator {
     const val DEFAULT_POSTAL_CODE = "12190"
 
     /**
-     * Exact Official Raw Static QRIS Payload string for BDS Coffee Co (NMID: ID1024365195063).
-     * Hardcoded base payload guaranteeing 100% scanning accuracy with Livin' by Mandiri, BCA, BRImo, GoPay, Dana.
+     * Exact Official Base Raw Static QRIS Payload string for BDS Coffee Co (NMID: ID1024365195063).
+     * Includes acquirer Mandiri switch 93600008, merchant ID 71709175308, and terminal A01.
      */
     const val OFFICIAL_STATIC_QRIS_PAYLOAD =
-        "00020101021126580014ID.CO.QRIS.WWW0115ID1024365195063021000000000010303UMI51320014ID.CO.QRIS.WWW021000000000015204581253033605802ID5913BDS COFFEE CO6007JAKARTA61051219062070703A016304CC63"
+        "00020101021126620014ID.CO.QRIS.WWW01189360000801709175300211717091753080303UMI51440014ID.CO.QRIS.WWW0115ID102436519506302030005204581253033605802ID5913BDS COFFEE CO6007JAKARTA61051219062070703A0163042590"
+
+    /**
+     * Parses an EMVCo QRIS string into a map of Tag to Value, preserving tag order.
+     */
+    fun parseTlv(raw: String): Pair<LinkedHashMap<String, String>, List<String>> {
+        val tags = LinkedHashMap<String, String>()
+        val order = mutableListOf<String>()
+        val end = if (raw.contains("6304")) raw.lastIndexOf("6304") else raw.length
+        var i = 0
+
+        while (i + 4 <= end) {
+            val tag = raw.substring(i, i + 2)
+            val lenStr = raw.substring(i + 2, i + 4)
+            val len = lenStr.toIntOrNull() ?: break
+            if (i + 4 + len > end) break
+            val value = raw.substring(i + 4, i + 4 + len)
+            tags[tag] = value
+            if (!order.contains(tag)) {
+                order.add(tag)
+            }
+            i += 4 + len
+        }
+
+        return Pair(tags, order)
+    }
+
+    /**
+     * Core conversion utility: Converts any static QRIS payload into a valid, scannable Dynamic QRIS payload.
+     * 1. Parses TLV blocks from the static string.
+     * 2. Sets Point of Initiation (Tag 01) to "12" (Dynamic).
+     * 3. Injects Tag 54 with formatted nominal amount (e.g. for Rp 29.400 -> "540529400").
+     * 4. Assembles tags and recalculates standard CRC16-CCITT (poly 0x1021, init 0xFFFF).
+     */
+    fun convertToDynamicQRIS(
+        staticString: String = OFFICIAL_STATIC_QRIS_PAYLOAD,
+        amount: Double,
+        invoiceNumber: String = ""
+    ): String {
+        val (tags, order) = parseTlv(staticString)
+
+        // 1. Set Point of Initiation to Dynamic (12)
+        tags["01"] = "12"
+
+        // 2. Format and inject Tag 54 (Amount without decimal points for IDR)
+        val amountInt = amount.toLong().coerceAtLeast(1)
+        val amountStr = amountInt.toString()
+        tags["54"] = amountStr
+
+        // Optional: If invoice number is provided, update Tag 62 with invoice reference sub-tag 01
+        if (invoiceNumber.isNotBlank()) {
+            val currentTag62 = tags["62"] ?: ""
+            val terminalVal = if (currentTag62.contains("0703A01")) "A01" else DEFAULT_TERMINAL
+            val newTag62 = formatTlv("01", invoiceNumber.take(20)) + formatTlv("07", terminalVal)
+            tags["62"] = newTag62
+        }
+
+        // Build new tag ordering: Tag 54 placed right after Tag 53 (Currency) or before Tag 58 (Country)
+        val newOrder = mutableListOf<String>()
+        var inserted54 = false
+
+        for (t in order) {
+            if (t == "63" || t == "54") continue
+            newOrder.add(t)
+            if (t == "53") {
+                newOrder.add("54")
+                inserted54 = true
+            }
+        }
+
+        if (!inserted54) {
+            val idx58 = newOrder.indexOf("58")
+            if (idx58 != -1) {
+                newOrder.add(idx58, "54")
+            } else {
+                newOrder.add("54")
+            }
+        }
+
+        // Assemble TLV string
+        val sb = StringBuilder()
+        for (t in newOrder) {
+            val v = tags[t] ?: continue
+            sb.append(formatTlv(t, v))
+        }
+
+        // Append 6304 and calculate CRC16-CCITT
+        val payloadToCrc = sb.toString() + "6304"
+        val crc = calculateCrc16Ccitt(payloadToCrc)
+        return payloadToCrc + crc
+    }
+
+    /**
+     * Backward-compatible helper method used throughout the app.
+     */
+    fun generateDynamicQris(
+        invoiceNumber: String,
+        amount: Double,
+        merchantName: String = DEFAULT_MERCHANT_NAME,
+        nmid: String = DEFAULT_NMID,
+        terminalId: String = DEFAULT_TERMINAL,
+        merchantCity: String = DEFAULT_CITY,
+        postalCode: String = DEFAULT_POSTAL_CODE
+    ): String {
+        val staticBase = generateStaticQris(merchantName, nmid, terminalId, merchantCity, postalCode)
+        return convertToDynamicQRIS(
+            staticString = staticBase,
+            amount = amount,
+            invoiceNumber = invoiceNumber
+        )
+    }
 
     /**
      * Retrieves the official static QRIS payload.
@@ -32,17 +143,17 @@ object QrisPayloadGenerator {
         merchantCity: String = DEFAULT_CITY,
         postalCode: String = DEFAULT_POSTAL_CODE
     ): String {
-        // Fast path: Exact official store payload
         if (merchantName == DEFAULT_MERCHANT_NAME && nmid == DEFAULT_NMID && terminalId == DEFAULT_TERMINAL) {
             return OFFICIAL_STATIC_QRIS_PAYLOAD
         }
 
         val tag26 = formatTlv("00", "ID.CO.QRIS.WWW") +
-                formatTlv("01", nmid) +
-                formatTlv("02", "0000000001") +
+                formatTlv("01", "936000080170917530") +
+                formatTlv("02", "71709175308") +
                 formatTlv("03", "UMI")
         val tag51 = formatTlv("00", "ID.CO.QRIS.WWW") +
-                formatTlv("02", "0000000001")
+                formatTlv("01", nmid) +
+                formatTlv("02", "000")
         val tag62 = formatTlv("07", terminalId)
 
         val builder = StringBuilder()
@@ -63,65 +174,7 @@ object QrisPayloadGenerator {
         return payloadWithoutCrc + crc
     }
 
-    /**
-     * Constructs a compliant Dynamic QRIS payload from the official base static payload.
-     * 1. Changes initiation method Tag 01 from "11" (Static) to "12" (Dynamic).
-     * 2. Injects Tag 54 with transaction nominal amount (e.g. 34600).
-     * 3. Injects Tag 62 with invoice number and terminal ID.
-     * 4. Recalculates 4-character CRC16-CCITT checksum at the end.
-     */
-    fun generateDynamicQris(
-        invoiceNumber: String,
-        amount: Double,
-        merchantName: String = DEFAULT_MERCHANT_NAME,
-        nmid: String = DEFAULT_NMID,
-        terminalId: String = DEFAULT_TERMINAL,
-        merchantCity: String = DEFAULT_CITY,
-        postalCode: String = DEFAULT_POSTAL_CODE
-    ): String {
-        val baseStatic = generateStaticQris(merchantName, nmid, terminalId, merchantCity, postalCode)
-
-        // Strip existing CRC "6304xxxx"
-        val pos63 = baseStatic.lastIndexOf("6304")
-        val raw = if (pos63 != -1) baseStatic.substring(0, pos63) else baseStatic
-
-        // 1. Switch initiation method 11 (Static) -> 12 (Dynamic)
-        var dynamicRaw = if (raw.contains("010211")) {
-            raw.replaceFirst("010211", "010212")
-        } else {
-            raw
-        }
-
-        // 2. Format Tag 54 (Transaction Amount without decimal for IDR)
-        val amountInt = amount.toLong()
-        val amountStr = amountInt.toString()
-        val tag54 = formatTlv("54", amountStr)
-
-        // 3. Inject Tag 54 before Tag 58 (Country Code "5802ID")
-        val idx58 = dynamicRaw.indexOf("5802ID")
-        dynamicRaw = if (idx58 != -1) {
-            dynamicRaw.substring(0, idx58) + tag54 + dynamicRaw.substring(idx58)
-        } else {
-            dynamicRaw + tag54
-        }
-
-        // 4. Update Tag 62 with Invoice Reference (sub-tag 01) if available
-        if (invoiceNumber.isNotBlank()) {
-            val oldTag62 = formatTlv("62", formatTlv("07", terminalId))
-            val newTag62Content = formatTlv("01", invoiceNumber.take(20)) + formatTlv("07", terminalId)
-            val newTag62 = formatTlv("62", newTag62Content)
-            if (dynamicRaw.contains(oldTag62)) {
-                dynamicRaw = dynamicRaw.replaceFirst(oldTag62, newTag62)
-            }
-        }
-
-        // 5. Append Tag 63 with length 04 and recalculate CRC16-CCITT
-        val payloadToSign = dynamicRaw + "6304"
-        val crc = calculateCrc16Ccitt(payloadToSign)
-        return payloadToSign + crc
-    }
-
-    private fun formatTlv(tag: String, value: String): String {
+    fun formatTlv(tag: String, value: String): String {
         val lengthStr = String.format(Locale.US, "%02d", value.length)
         return "$tag$lengthStr$value"
     }

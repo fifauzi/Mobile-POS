@@ -22,8 +22,17 @@ data class CartItem(
     val variantPriceDelta: Double
         get() = selectedVariants.values.flatten().sumOf { it.priceAdjustment }
 
+    val activeBasePrice: Double
+        get() = if (product.hasB2bPricing) product.getUnitPriceForQuantity(quantity) else product.basePrice
+
+    val isB2bPriceApplied: Boolean
+        get() = product.hasB2bPricing && product.isB2bTierApplied(quantity)
+
+    val b2bTierLabel: String?
+        get() = if (product.hasB2bPricing) product.getB2bTierLabel(quantity) else null
+
     val baseUnitWithVariants: Double
-        get() = product.basePrice + variantPriceDelta
+        get() = activeBasePrice + variantPriceDelta
 
     val unitDiscountAmount: Double
         get() = when (discountType) {

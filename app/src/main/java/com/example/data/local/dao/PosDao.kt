@@ -65,9 +65,15 @@ interface PosDao {
     @Query("SELECT COUNT(*) FROM products")
     suspend fun getProductCount(): Int
 
+    @Query("SELECT * FROM products WHERE isActive = 1 ORDER BY name ASC")
+    suspend fun getAllProductsSync(): List<ProductEntity>
+
     // Orders
     @Query("SELECT * FROM orders ORDER BY timestamp DESC")
     fun getAllOrders(): Flow<List<OrderEntity>>
+
+    @Query("SELECT COUNT(*) FROM orders")
+    suspend fun getOrderCount(): Int
 
     @Query("SELECT * FROM orders WHERE timestamp >= :startTime AND timestamp <= :endTime ORDER BY timestamp DESC")
     fun getOrdersBetween(startTime: Long, endTime: Long): Flow<List<OrderEntity>>
@@ -105,6 +111,9 @@ interface PosDao {
     // Variant Groups
     @Query("SELECT * FROM variant_groups ORDER BY sortOrder ASC, name ASC")
     fun getAllVariantGroups(): Flow<List<VariantGroupEntity>>
+
+    @Query("SELECT COUNT(*) FROM variant_groups")
+    suspend fun getVariantGroupCount(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVariantGroup(group: VariantGroupEntity)
