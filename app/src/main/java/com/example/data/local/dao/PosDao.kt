@@ -87,6 +87,12 @@ interface PosDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrders(orders: List<OrderEntity>)
 
+    @Query("SELECT * FROM orders")
+    suspend fun getAllOrdersSync(): List<OrderEntity>
+
+    @Update
+    suspend fun updateOrders(orders: List<OrderEntity>)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrderItems(items: List<OrderItemEntity>)
 

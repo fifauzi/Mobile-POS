@@ -341,30 +341,29 @@ object DatabaseSeeder {
 
         // 4. Seed Initial Completed Orders if empty (so dashboard, history & shift reports are ready)
         if (dao.getOrderCount() == 0) {
-            val now = System.currentTimeMillis()
-            val hourMs = 3600000L
-
             val sampleOrders = listOf(
+                // Oct 29, 2026 (Today) Order 1
                 OrderEntity(
-                    invoiceNumber = "INV-20261027-091520",
-                    timestamp = now - (3 * hourMs),
-                    customerName = "Kak Rudi (Meja 02)",
-                    orderType = "DINE_IN",
-                    subtotal = 80000.0,
+                    invoiceNumber = "INV-20261029-142010",
+                    timestamp = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp("INV-20261029-142010", 0),
+                    customerName = "Kak Maya / Takeaway",
+                    orderType = "TAKEAWAY",
+                    subtotal = 58000.0,
                     taxPercentage = 10.0,
-                    taxAmount = 8000.0,
-                    grandTotal = 88000.0,
-                    paymentMethod = "QRIS",
-                    tenderedAmount = 88000.0,
-                    changeAmount = 0.0,
+                    taxAmount = 5800.0,
+                    grandTotal = 63800.0,
+                    paymentMethod = "CASH",
+                    tenderedAmount = 100000.0,
+                    changeAmount = 36200.0,
                     paymentStatus = "PAID",
-                    cashierName = "Rian Pratama",
-                    shiftName = "Shift 1",
-                    notes = "Gula aren dipisah"
+                    cashierName = "Maya Sari",
+                    shiftName = "Shift 2",
+                    notes = "Less ice"
                 ),
+                // Oct 29, 2026 (Today) Order 2 (B2B order)
                 OrderEntity(
-                    invoiceNumber = "INV-20261027-113045",
-                    timestamp = now - (2 * hourMs),
+                    invoiceNumber = "INV-20261029-113045",
+                    timestamp = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp("INV-20261029-113045", 0),
                     customerName = "PT Kopi Mandiri [B2B]",
                     orderType = "TAKEAWAY",
                     subtotal = 510000.0,
@@ -379,73 +378,49 @@ object DatabaseSeeder {
                     shiftName = "Shift 1",
                     notes = "Invoice B2B pesanan 6 pack beans Tier 1"
                 ),
+                // Oct 28, 2026 (Yesterday) Order
                 OrderEntity(
-                    invoiceNumber = "INV-20261027-142010",
-                    timestamp = now - (1 * hourMs),
-                    customerName = "Kak Maya / Takeaway",
-                    orderType = "TAKEAWAY",
-                    subtotal = 58000.0,
+                    invoiceNumber = "INV-20261028-161520",
+                    timestamp = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp("INV-20261028-161520", 0),
+                    customerName = "Kak Rudi (Meja 02)",
+                    orderType = "DINE_IN",
+                    subtotal = 80000.0,
                     taxPercentage = 10.0,
-                    taxAmount = 5800.0,
-                    grandTotal = 63800.0,
-                    paymentMethod = "CASH",
-                    tenderedAmount = 100000.0,
-                    changeAmount = 36200.0,
+                    taxAmount = 8000.0,
+                    grandTotal = 88000.0,
+                    paymentMethod = "QRIS",
+                    tenderedAmount = 88000.0,
+                    changeAmount = 0.0,
                     paymentStatus = "PAID",
-                    cashierName = "Maya Sari",
+                    cashierName = "Rian Pratama",
+                    shiftName = "Shift 1",
+                    notes = "Gula aren dipisah"
+                ),
+                // Oct 27, 2026 (2 Days Ago) Order
+                OrderEntity(
+                    invoiceNumber = "INV-20261027-091520",
+                    timestamp = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp("INV-20261027-091520", 0),
+                    customerName = "Mas Dimas / Takeaway",
+                    orderType = "TAKEAWAY",
+                    subtotal = 34000.0,
+                    taxPercentage = 10.0,
+                    taxAmount = 3400.0,
+                    grandTotal = 37400.0,
+                    paymentMethod = "CASH",
+                    tenderedAmount = 50000.0,
+                    changeAmount = 12600.0,
+                    paymentStatus = "PAID",
+                    cashierName = "Rian Pratama",
                     shiftName = "Shift 2",
-                    notes = "Less ice"
+                    notes = "Extra hot"
                 )
             )
             dao.insertOrders(sampleOrders)
 
             val sampleOrderItems = listOf(
-                // Items for INV-20261027-091520
+                // Items for INV-20261029-142010 (Oct 29)
                 OrderItemEntity(
-                    orderInvoiceNumber = "INV-20261027-091520",
-                    productId = 1L,
-                    productName = "BDS Aren Latte",
-                    sku = "CF-001",
-                    basePrice = 28000.0,
-                    costPrice = 11000.0,
-                    variantSummary = "Iced, Less Sugar 50%",
-                    unitPrice = 28000.0,
-                    quantity = 2,
-                    lineTotal = 56000.0,
-                    categoryName = "Coffee"
-                ),
-                OrderItemEntity(
-                    orderInvoiceNumber = "INV-20261027-091520",
-                    productId = 14L,
-                    productName = "French Butter Croissant",
-                    sku = "PS-001",
-                    basePrice = 24000.0,
-                    costPrice = 10000.0,
-                    variantSummary = "Standard",
-                    unitPrice = 24000.0,
-                    quantity = 1,
-                    lineTotal = 24000.0,
-                    categoryName = "Pastry & Bakery"
-                ),
-
-                // Items for INV-20261027-113045 (B2B Tier 1 order)
-                OrderItemEntity(
-                    orderInvoiceNumber = "INV-20261027-113045",
-                    productId = 10L,
-                    productName = "House Blend Beans 250g [B2B]",
-                    sku = "RB-001",
-                    basePrice = 85000.0,
-                    costPrice = 55000.0,
-                    variantSummary = "Whole Bean, B2B Tier 1 (≥5)",
-                    unitPrice = 85000.0,
-                    quantity = 6,
-                    lineTotal = 510000.0,
-                    categoryName = "Roasted Beans"
-                ),
-
-                // Items for INV-20261027-142010
-                OrderItemEntity(
-                    orderInvoiceNumber = "INV-20261027-142010",
+                    orderInvoiceNumber = "INV-20261029-142010",
                     productId = 7L,
                     productName = "Matcha Fusion Latte",
                     sku = "NC-001",
@@ -458,7 +433,7 @@ object DatabaseSeeder {
                     categoryName = "Non-Coffee"
                 ),
                 OrderItemEntity(
-                    orderInvoiceNumber = "INV-20261027-142010",
+                    orderInvoiceNumber = "INV-20261029-142010",
                     productId = 16L,
                     productName = "Cinnamon Swirl Roll",
                     sku = "PS-003",
@@ -469,9 +444,82 @@ object DatabaseSeeder {
                     quantity = 1,
                     lineTotal = 26000.0,
                     categoryName = "Pastry & Bakery"
+                ),
+
+                // Items for INV-20261029-113045 (Oct 29 B2B Tier 1 order)
+                OrderItemEntity(
+                    orderInvoiceNumber = "INV-20261029-113045",
+                    productId = 10L,
+                    productName = "House Blend Beans 250g [B2B]",
+                    sku = "RB-001",
+                    basePrice = 85000.0,
+                    costPrice = 55000.0,
+                    variantSummary = "Whole Bean, B2B Tier 1 (≥5)",
+                    unitPrice = 85000.0,
+                    quantity = 6,
+                    lineTotal = 510000.0,
+                    categoryName = "Roasted Beans"
+                ),
+
+                // Items for INV-20261028-161520 (Oct 28)
+                OrderItemEntity(
+                    orderInvoiceNumber = "INV-20261028-161520",
+                    productId = 1L,
+                    productName = "BDS Aren Latte",
+                    sku = "CF-001",
+                    basePrice = 28000.0,
+                    costPrice = 11000.0,
+                    variantSummary = "Iced, Less Sugar 50%",
+                    unitPrice = 28000.0,
+                    quantity = 2,
+                    lineTotal = 56000.0,
+                    categoryName = "Coffee"
+                ),
+                OrderItemEntity(
+                    orderInvoiceNumber = "INV-20261028-161520",
+                    productId = 14L,
+                    productName = "French Butter Croissant",
+                    sku = "PS-001",
+                    basePrice = 24000.0,
+                    costPrice = 10000.0,
+                    variantSummary = "Standard",
+                    unitPrice = 24000.0,
+                    quantity = 1,
+                    lineTotal = 24000.0,
+                    categoryName = "Pastry & Bakery"
+                ),
+
+                // Items for INV-20261027-091520 (Oct 27)
+                OrderItemEntity(
+                    orderInvoiceNumber = "INV-20261027-091520",
+                    productId = 5L,
+                    productName = "Caramel Macchiato",
+                    sku = "CF-005",
+                    basePrice = 34000.0,
+                    costPrice = 13000.0,
+                    variantSummary = "Hot, Normal 100%",
+                    unitPrice = 34000.0,
+                    quantity = 1,
+                    lineTotal = 34000.0,
+                    categoryName = "Coffee"
                 )
             )
             dao.insertOrderItems(sampleOrderItems)
+        } else {
+            // 5. Sanitize any existing orders whose stored timestamp doesn't match their encoded invoice date
+            try {
+                val existingOrders = dao.getAllOrdersSync()
+                val ordersToFix = existingOrders.filter { order ->
+                    com.example.ui.components.DateTimeUtils.hasDateEncodedInInvoice(order.invoiceNumber) &&
+                        order.timestamp != com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp(order)
+                }
+                if (ordersToFix.isNotEmpty()) {
+                    val fixed = ordersToFix.map {
+                        it.copy(timestamp = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp(it))
+                    }
+                    dao.updateOrders(fixed)
+                }
+            } catch (_: Exception) {}
         }
     }
 }

@@ -62,6 +62,7 @@ import com.example.data.local.model.OrderItemEntity
 import com.example.ui.PosViewModel
 import com.example.ui.checkout.ReceiptSuccessModal
 import com.example.ui.components.CurrencyUtils
+import com.example.ui.components.DateTimeUtils
 import com.example.ui.components.IosSegmentedControl
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.BrandBlue
@@ -76,6 +77,18 @@ import com.example.ui.theme.TextDarkSecondary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+/**
+ * Data model for dynamically grouped transactions by calendar date in WIB (Asia/Jakarta).
+ */
+data class DateGroupSummary(
+    val dateKey: String,
+    val displayDate: String,
+    val isToday: Boolean,
+    val orders: List<OrderEntity>,
+    val totalRevenue: Double,
+    val transactionCount: Int
+)
 
 /**
  * Transaksi Screen matching image_afa560ee.png and image_711ee7d3.png:
@@ -94,33 +107,65 @@ fun OrdersHistoryScreen(
     val allOrderItems by viewModel.allOrderItems.collectAsStateWithLifecycle()
 
     var selectedTabIdx by remember { mutableIntStateOf(0) } // 0: Pendapatan, 1: Pencairan
-    // Default to today's transactions ("Hari ini") as strictly required
-    var filterDaysLabel by remember { mutableStateOf("Hari ini") }
+    // Default to "Semua waktu" so historical date groups (Oct 27, Oct 28, Oct 29) are immediately visible
+    var filterDaysLabel by remember { mutableStateOf("Semua waktu") }
     var isFilterDropdownOpen by remember { mutableStateOf(false) }
 
     var selectedOrderForDetail by remember { mutableStateOf<Pair<OrderEntity, List<OrderItemEntity>>?>(null) }
     var showFullAnalytics by remember { mutableStateOf(false) }
 
-    val filteredOrders = remember(orders, filterDaysLabel) {
+    val dateGroups = remember(orders, filterDaysLabel) {
         val now = System.currentTimeMillis()
-        val oneDayMs = 24L * 60 * 60 * 1000
-        when (filterDaysLabel) {
-            "Hari ini" -> orders.filter { now - it.timestamp <= oneDayMs }
-            "7 hari terakhir" -> orders.filter { now - it.timestamp <= 7 * oneDayMs }
-            "14 hari terakhir" -> orders.filter { now - it.timestamp <= 14 * oneDayMs }
-            "30 hari terakhir" -> orders.filter { now - it.timestamp <= 30 * oneDayMs }
+        val filtered = when (filterDaysLabel) {
+            "Hari ini" -> {
+                val startOfToday = DateTimeUtils.getStartOfDayWib(now)
+                val endOfToday = DateTimeUtils.getEndOfDayWib(now)
+                orders.filter { order ->
+                    val effTime = DateTimeUtils.getOrderEffectiveTimestamp(order)
+                    effTime in startOfToday..endOfToday
+                }
+            }
+            "7 hari terakhir" -> {
+                val start = DateTimeUtils.getStartOfDayDaysAgoWib(6, now)
+                orders.filter { DateTimeUtils.getOrderEffectiveTimestamp(it) >= start }
+            }
+            "14 hari terakhir" -> {
+                val start = DateTimeUtils.getStartOfDayDaysAgoWib(13, now)
+                orders.filter { DateTimeUtils.getOrderEffectiveTimestamp(it) >= start }
+            }
+            "30 hari terakhir" -> {
+                val start = DateTimeUtils.getStartOfDayDaysAgoWib(29, now)
+                orders.filter { DateTimeUtils.getOrderEffectiveTimestamp(it) >= start }
+            }
             else -> orders
+        }
+
+        // Group dynamically by WIB calendar date ("yyyy-MM-dd") extracted from invoice ID or timestamp
+        val groupedByDay = filtered.groupBy { DateTimeUtils.getOrderDateKey(it) }
+
+        // Sort calendar dates descending (newest day first)
+        groupedByDay.keys.sortedDescending().mapNotNull { dayKey ->
+            val dayOrders = groupedByDay[dayKey]?.sortedByDescending { DateTimeUtils.getOrderEffectiveTimestamp(it) } ?: return@mapNotNull null
+            if (dayOrders.isEmpty()) return@mapNotNull null
+
+            val sampleTimestamp = DateTimeUtils.getOrderEffectiveTimestamp(dayOrders.first())
+            val isToday = DateTimeUtils.isTodayWib(sampleTimestamp, now)
+            val displayHeader = DateTimeUtils.formatDateHeader(sampleTimestamp)
+            val dayTotal = dayOrders.sumOf { it.grandTotal }
+
+            DateGroupSummary(
+                dateKey = dayKey,
+                displayDate = displayHeader,
+                isToday = isToday,
+                orders = dayOrders,
+                totalRevenue = dayTotal,
+                transactionCount = dayOrders.size
+            )
         }
     }
 
     val orderItemsGrouped = remember(allOrderItems) {
         allOrderItems.groupBy { it.orderInvoiceNumber }
-    }
-
-    // Group orders by date formatted "EEEE, dd MMM yyyy"
-    val ordersByDate = remember(filteredOrders) {
-        val dateFormat = SimpleDateFormat("EEEE, dd MMM yyyy", Locale("id", "ID"))
-        filteredOrders.groupBy { dateFormat.format(Date(it.timestamp)) }
     }
 
     BackHandler(enabled = showFullAnalytics || selectedOrderForDetail != null) {
@@ -247,7 +292,7 @@ fun OrdersHistoryScreen(
                         onDismissRequest = { isFilterDropdownOpen = false },
                         modifier = Modifier.background(CardBg)
                     ) {
-                        listOf("Hari ini", "7 hari terakhir", "14 hari terakhir", "30 hari terakhir", "Semua waktu").forEach { opt ->
+                        listOf("Semua waktu", "Hari ini", "7 hari terakhir", "14 hari terakhir", "30 hari terakhir").forEach { opt ->
                             DropdownMenuItem(
                                 text = { Text(opt, fontWeight = if (filterDaysLabel == opt) FontWeight.Bold else FontWeight.Normal) },
                                 onClick = {
@@ -262,7 +307,7 @@ fun OrdersHistoryScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Grouped Transactions List by Date
-                if (filteredOrders.isEmpty()) {
+                if (dateGroups.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -297,11 +342,10 @@ fun OrdersHistoryScreen(
                             .padding(horizontal = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        ordersByDate.forEach { (dateHeader, dateOrders) ->
-                            item(key = dateHeader) {
+                        dateGroups.forEach { group ->
+                            item(key = group.dateKey) {
                                 DateGroupAccordionCard(
-                                    dateHeader = dateHeader,
-                                    orders = dateOrders,
+                                    group = group,
                                     itemsGrouped = orderItemsGrouped,
                                     onOrderClick = { ord, itms ->
                                         selectedOrderForDetail = Pair(ord, itms)
@@ -337,13 +381,11 @@ fun OrdersHistoryScreen(
  */
 @Composable
 fun DateGroupAccordionCard(
-    dateHeader: String,
-    orders: List<OrderEntity>,
+    group: DateGroupSummary,
     itemsGrouped: Map<String, List<OrderItemEntity>>,
     onOrderClick: (OrderEntity, List<OrderItemEntity>) -> Unit,
     onReprint: (OrderEntity, List<OrderItemEntity>) -> Unit
 ) {
-    val totalAmount = remember(orders) { orders.sumOf { it.grandTotal } }
     var isExpanded by remember { mutableStateOf(true) }
 
     Card(
@@ -367,13 +409,13 @@ fun DateGroupAccordionCard(
             ) {
                 Column {
                     Text(
-                        text = dateHeader,
+                        text = group.displayDate,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextDarkPrimary
                     )
                     Text(
-                        text = "${orders.size} transaksi • ${CurrencyUtils.formatIdr(totalAmount)}",
+                        text = "${group.transactionCount} transaksi • ${CurrencyUtils.formatIdr(group.totalRevenue)}",
                         fontSize = 12.sp,
                         color = TextDarkSecondary
                     )
@@ -409,8 +451,8 @@ fun DateGroupAccordionCard(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     // Sub-Cards for each transaction
-                    orders.forEachIndexed { index, order ->
-                        val timeStr = SimpleDateFormat("HH:mm:ss 'WIB'", Locale("id", "ID")).format(Date(order.timestamp))
+                    group.orders.forEachIndexed { index, order ->
+                        val timeStr = DateTimeUtils.formatTime(DateTimeUtils.getOrderEffectiveTimestamp(order))
                         val items = itemsGrouped[order.invoiceNumber] ?: emptyList()
                         val itemCount = items.sumOf { it.quantity }
                         val isDineIn = order.orderType != "TAKEAWAY"
@@ -525,20 +567,21 @@ fun DateGroupAccordionCard(
 
                     HorizontalDivider(thickness = 0.5.dp, color = BorderSubtle, modifier = Modifier.padding(vertical = 6.dp))
 
-                    // Total Row
+                    // Date-Specific Daily Total Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val firstOrderEffTime = DateTimeUtils.getOrderEffectiveTimestamp(group.orders.first())
                         Text(
-                            text = "Total Hari Ini",
+                            text = if (group.isToday) "Total Hari Ini" else "Total Harian (${DateTimeUtils.formatShortDate(firstOrderEffTime)})",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextDarkPrimary
                         )
                         Text(
-                            text = CurrencyUtils.formatIdr(totalAmount),
+                            text = CurrencyUtils.formatIdr(group.totalRevenue),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = TextDarkPrimary

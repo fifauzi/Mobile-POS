@@ -128,7 +128,9 @@ fun CheckoutModal(
     var isStaticQrisMode by remember { mutableStateOf(false) }
 
     val tempInvoiceNumber = remember {
-        "INV-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        "INV-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).apply {
+            timeZone = com.example.ui.components.DateTimeUtils.WIB_ZONE
+        }.format(Date())
     }
     val staticPayload = remember(merchantName, qrisNmid, qrisTerminal) {
         QrisPayloadGenerator.generateStaticQris(

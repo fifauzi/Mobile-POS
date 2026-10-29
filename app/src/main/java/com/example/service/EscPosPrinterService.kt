@@ -55,8 +55,11 @@ object EscPosPrinterService {
         paperWidth: Int = PAPER_WIDTH_CHARS
     ): ByteArray {
         val out = ByteArrayOutputStream()
-        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID"))
-        val dateStr = dateFormat.format(Date(order.timestamp))
+        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID")).apply {
+            timeZone = com.example.ui.components.DateTimeUtils.WIB_ZONE
+        }
+        val effTime = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp(order)
+        val dateStr = dateFormat.format(Date(effTime))
         val orderTypeLabel = if (order.orderType == "TAKEAWAY") "BUNGKUS (TAKEAWAY)" else "MAKAN DI TEMPAT (DINE-IN)"
 
         // 1. Initialize

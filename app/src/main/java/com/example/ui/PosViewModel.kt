@@ -453,7 +453,9 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         if (items.isEmpty()) return
 
         val now = System.currentTimeMillis()
-        val invoice = "INV-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date(now))
+        val invoice = "INV-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).apply {
+            timeZone = com.example.ui.components.DateTimeUtils.WIB_ZONE
+        }.format(Date(now))
         val change = (tenderedAmount - summary.grandTotal).coerceAtLeast(0.0)
 
         val order = OrderEntity(

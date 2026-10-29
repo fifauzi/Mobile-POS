@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.model.OrderEntity
 import com.example.ui.PosViewModel
 import com.example.ui.components.CurrencyUtils
+import com.example.ui.components.DateTimeUtils
 import com.example.ui.components.PosTab
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.BrandBlue
@@ -103,17 +104,27 @@ fun DashboardScreen(
 
     var isShiftModalOpen by remember { mutableStateOf(false) }
 
-    val totalRevenue = remember(orders) {
-        orders.sumOf { it.grandTotal }
+    val todayOrders = remember(orders) {
+        val now = System.currentTimeMillis()
+        val startOfToday = DateTimeUtils.getStartOfDayWib(now)
+        val endOfToday = DateTimeUtils.getEndOfDayWib(now)
+        orders.filter { order ->
+            val effTime = DateTimeUtils.getOrderEffectiveTimestamp(order)
+            effTime in startOfToday..endOfToday
+        }
     }
 
-    val todayOrdersCount = orders.size
+    val totalRevenue = remember(todayOrders) {
+        todayOrders.sumOf { it.grandTotal }
+    }
+
+    val todayOrdersCount = todayOrders.size
     val averageTicket = remember(totalRevenue, todayOrdersCount) {
         if (todayOrdersCount > 0) totalRevenue / todayOrdersCount else 0.0
     }
 
-    val todayCogsHpp = remember(orders, allOrderItems) {
-        val invoiceSet = orders.map { it.invoiceNumber }.toSet()
+    val todayCogsHpp = remember(todayOrders, allOrderItems) {
+        val invoiceSet = todayOrders.map { it.invoiceNumber }.toSet()
         allOrderItems.filter { it.orderInvoiceNumber in invoiceSet }
             .sumOf { it.costPrice * it.quantity }
     }
@@ -125,15 +136,8 @@ fun DashboardScreen(
         products.filter { it.stockQuantity <= 10 }.take(4)
     }
 
-    val todayTopProducts = remember(orders, allOrderItems) {
-        val calendar = java.util.Calendar.getInstance().apply {
-            set(java.util.Calendar.HOUR_OF_DAY, 0)
-            set(java.util.Calendar.MINUTE, 0)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
-        }
-        val startOfToday = calendar.timeInMillis
-        val todayInvoices = orders.filter { it.timestamp >= startOfToday }.map { it.invoiceNumber }.toSet()
+    val todayTopProducts = remember(todayOrders, allOrderItems) {
+        val todayInvoices = todayOrders.map { it.invoiceNumber }.toSet()
         val itemsForToday = allOrderItems.filter { it.orderInvoiceNumber in todayInvoices }
         val sourceItems = if (itemsForToday.isNotEmpty()) itemsForToday else allOrderItems
 

@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.PosViewModel
 import com.example.ui.components.CurrencyUtils
+import com.example.ui.components.DateTimeUtils
 import com.example.ui.components.IosSegmentedControl
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.BrandBlue
@@ -101,26 +102,34 @@ fun AnalyticsScreen(
 
     val filteredOrders = remember(orders, filterLabel) {
         val now = System.currentTimeMillis()
-        val oneDayMs = 24L * 60 * 60 * 1000
-        val cal = java.util.Calendar.getInstance()
         when (filterLabel) {
             "Hari ini" -> {
-                cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-                cal.set(java.util.Calendar.MINUTE, 0)
-                cal.set(java.util.Calendar.SECOND, 0)
-                cal.set(java.util.Calendar.MILLISECOND, 0)
-                orders.filter { it.timestamp >= cal.timeInMillis }
+                val startOfToday = DateTimeUtils.getStartOfDayWib(now)
+                val endOfToday = DateTimeUtils.getEndOfDayWib(now)
+                orders.filter { DateTimeUtils.getOrderEffectiveTimestamp(it) in startOfToday..endOfToday }
             }
-            "7 hari terakhir" -> orders.filter { now - it.timestamp <= 7 * oneDayMs }
-            "14 hari terakhir" -> orders.filter { now - it.timestamp <= 14 * oneDayMs }
-            "30 hari terakhir" -> orders.filter { now - it.timestamp <= 30 * oneDayMs }
+            "7 hari terakhir" -> {
+                val start = DateTimeUtils.getStartOfDayDaysAgoWib(6, now)
+                orders.filter { DateTimeUtils.getOrderEffectiveTimestamp(it) >= start }
+            }
+            "14 hari terakhir" -> {
+                val start = DateTimeUtils.getStartOfDayDaysAgoWib(13, now)
+                orders.filter { DateTimeUtils.getOrderEffectiveTimestamp(it) >= start }
+            }
+            "30 hari terakhir" -> {
+                val start = DateTimeUtils.getStartOfDayDaysAgoWib(29, now)
+                orders.filter { DateTimeUtils.getOrderEffectiveTimestamp(it) >= start }
+            }
             "Bulan ini" -> {
-                cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
-                cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-                cal.set(java.util.Calendar.MINUTE, 0)
-                cal.set(java.util.Calendar.SECOND, 0)
-                cal.set(java.util.Calendar.MILLISECOND, 0)
-                orders.filter { it.timestamp >= cal.timeInMillis }
+                val cal = java.util.Calendar.getInstance(DateTimeUtils.WIB_ZONE).apply {
+                    timeInMillis = now
+                    set(java.util.Calendar.DAY_OF_MONTH, 1)
+                    set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0)
+                    set(java.util.Calendar.MILLISECOND, 0)
+                }
+                orders.filter { DateTimeUtils.getOrderEffectiveTimestamp(it) >= cal.timeInMillis }
             }
             else -> orders
         }

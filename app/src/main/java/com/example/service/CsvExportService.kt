@@ -19,14 +19,17 @@ object CsvExportService {
         orders: List<OrderEntity>,
         orderItemsMap: Map<String, List<OrderItemEntity>>
     ): String {
-        val dateTimeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+        val dateTimeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply {
+            timeZone = com.example.ui.components.DateTimeUtils.WIB_ZONE
+        }
         val sb = StringBuilder()
 
         // Dedicated 21-Column CSV Architecture with individual columns for each variant attribute
         sb.append("Transaction ID,Date & Time,Employee / Cashier,Shift,Order Type,Category,Product Name,Base Price,Variant - Size,Variant - Type,Variant - Beans Type,Variant - Grind Size,Variant - Sugar Level,Variant - Add-ons,Variant Extra Price Total,Quantity,Subtotal,Discount,Tax / Service Fee,Grand Total,Payment Method\n")
 
         for (order in orders) {
-            val dateTimeStr = dateTimeFormat.format(Date(order.timestamp))
+            val effTime = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp(order)
+            val dateTimeStr = dateTimeFormat.format(Date(effTime))
             val cashier = order.cashierName.ifBlank { "Rian Pratama" }
             val shift = com.example.data.local.SettingsStorageService.normalizeShift(order.shiftName)
             val orderType = if (order.orderType == "TAKEAWAY") "Takeaway" else "Dine-in"

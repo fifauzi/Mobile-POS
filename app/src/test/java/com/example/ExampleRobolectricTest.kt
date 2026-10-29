@@ -569,4 +569,140 @@ class ExampleRobolectricTest {
         service.clearActiveCartDraft()
         org.junit.Assert.assertNull(service.loadActiveCartDraft())
     }
+
+    @Test
+    fun `dynamic date grouping partitions transactions by WIB calendar date and calculates day-specific totals`() {
+        val calWib = java.util.Calendar.getInstance(com.example.ui.components.DateTimeUtils.WIB_ZONE).apply {
+            set(2026, java.util.Calendar.OCTOBER, 28, 10, 0, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val t1 = calWib.timeInMillis // 28 Oct 2026 10:00 WIB
+
+        calWib.set(java.util.Calendar.HOUR_OF_DAY, 23)
+        calWib.set(java.util.Calendar.MINUTE, 30)
+        val t2LateNight = calWib.timeInMillis // 28 Oct 2026 23:30 WIB (in UTC this is 16:30 same day, but tests calendar boundary)
+
+        calWib.set(2026, java.util.Calendar.OCTOBER, 27, 14, 0, 0)
+        val t3Yesterday = calWib.timeInMillis // 27 Oct 2026 14:00 WIB
+
+        // 1. Verify Date Key grouping (yyyy-MM-dd)
+        assertEquals("2026-10-28", com.example.ui.components.DateTimeUtils.formatDateKey(t1))
+        assertEquals("2026-10-28", com.example.ui.components.DateTimeUtils.formatDateKey(t2LateNight))
+        assertEquals("2026-10-27", com.example.ui.components.DateTimeUtils.formatDateKey(t3Yesterday))
+
+        // 2. Verify Indonesian Header formatting
+        val header1 = com.example.ui.components.DateTimeUtils.formatDateHeader(t1)
+        val header3 = com.example.ui.components.DateTimeUtils.formatDateHeader(t3Yesterday)
+        assertTrue(header1.contains("28"))
+        assertTrue(header1.contains("Okt") || header1.contains("Oktober"))
+        assertTrue(header3.contains("27"))
+
+        // 3. Verify Orders Grouping and Specific Daily Totals
+        val orders = listOf(
+            OrderEntity(
+                invoiceNumber = "INV-01",
+                timestamp = t1,
+                customerName = "Cust 1",
+                subtotal = 50000.0,
+                grandTotal = 50000.0,
+                paymentMethod = "CASH"
+            ),
+            OrderEntity(
+                invoiceNumber = "INV-02",
+                timestamp = t2LateNight,
+                customerName = "Cust 2",
+                subtotal = 75000.0,
+                grandTotal = 75000.0,
+                paymentMethod = "QRIS"
+            ),
+            OrderEntity(
+                invoiceNumber = "INV-03",
+                timestamp = t3Yesterday,
+                customerName = "Cust 3",
+                subtotal = 120000.0,
+                grandTotal = 120000.0,
+                paymentMethod = "BANK_TRANSFER"
+            )
+        )
+
+        val grouped = orders.groupBy { com.example.ui.components.DateTimeUtils.formatDateKey(it.timestamp) }
+        assertEquals(2, grouped.keys.size)
+        assertTrue(grouped.containsKey("2026-10-28"))
+        assertTrue(grouped.containsKey("2026-10-27"))
+
+        val day1Orders = grouped["2026-10-28"]!!
+        val day2Orders = grouped["2026-10-27"]!!
+
+        assertEquals(2, day1Orders.size)
+        assertEquals(125000.0, day1Orders.sumOf { it.grandTotal }, 0.01)
+
+        assertEquals(1, day2Orders.size)
+        assertEquals(120000.0, day2Orders.sumOf { it.grandTotal }, 0.01)
+
+        // 4. Verify Start & End of Day bounds in WIB
+        val startOfT1 = com.example.ui.components.DateTimeUtils.getStartOfDayWib(t1)
+        val endOfT1 = com.example.ui.components.DateTimeUtils.getEndOfDayWib(t1)
+        assertTrue(t1 in startOfT1..endOfT1)
+        assertTrue(t2LateNight in startOfT1..endOfT1)
+        org.junit.Assert.assertFalse(t3Yesterday in startOfT1..endOfT1)
+    }
+
+    @Test
+    fun `extract date directly from invoice ID pattern and partition historical dates independently`() {
+        val nowMistakenTimestamp = System.currentTimeMillis() // Today timestamp
+
+        // Orders created on different historical dates but with identical/today raw timestamp
+        val orderOct27 = OrderEntity(
+            invoiceNumber = "INV-20261027-142010",
+            timestamp = nowMistakenTimestamp,
+            customerName = "Cust 27",
+            subtotal = 50000.0,
+            grandTotal = 50000.0,
+            paymentMethod = "CASH"
+        )
+        val orderOct28 = OrderEntity(
+            invoiceNumber = "INV-20261028-113045",
+            timestamp = nowMistakenTimestamp,
+            customerName = "Cust 28",
+            subtotal = 80000.0,
+            grandTotal = 80000.0,
+            paymentMethod = "QRIS"
+        )
+        val orderOct29 = OrderEntity(
+            invoiceNumber = "INV-20261029-091520",
+            timestamp = nowMistakenTimestamp,
+            customerName = "Cust 29",
+            subtotal = 35000.0,
+            grandTotal = 35000.0,
+            paymentMethod = "BANK_TRANSFER"
+        )
+
+        // 1. Verify getOrderDateKey parses directly from invoice prefix
+        assertEquals("2026-10-27", com.example.ui.components.DateTimeUtils.getOrderDateKey(orderOct27))
+        assertEquals("2026-10-28", com.example.ui.components.DateTimeUtils.getOrderDateKey(orderOct28))
+        assertEquals("2026-10-29", com.example.ui.components.DateTimeUtils.getOrderDateKey(orderOct29))
+
+        // 2. Verify getOrderEffectiveTimestamp extracts exact WIB time
+        val eff27 = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp(orderOct27)
+        val eff28 = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp(orderOct28)
+        val eff29 = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp(orderOct29)
+
+        assertEquals("14:20:10 WIB", com.example.ui.components.DateTimeUtils.formatTime(eff27))
+        assertEquals("11:30:45 WIB", com.example.ui.components.DateTimeUtils.formatTime(eff28))
+        assertEquals("09:15:20 WIB", com.example.ui.components.DateTimeUtils.formatTime(eff29))
+
+        // 3. Verify distinct calendar date grouping into 3 separate groups
+        val orders = listOf(orderOct27, orderOct28, orderOct29)
+        val groupedByDate = orders.groupBy { com.example.ui.components.DateTimeUtils.getOrderDateKey(it) }
+
+        assertEquals(3, groupedByDate.keys.size)
+        assertTrue(groupedByDate.containsKey("2026-10-27"))
+        assertTrue(groupedByDate.containsKey("2026-10-28"))
+        assertTrue(groupedByDate.containsKey("2026-10-29"))
+
+        // 4. Verify each group's independent totals
+        assertEquals(50000.0, groupedByDate["2026-10-27"]!!.sumOf { it.grandTotal }, 0.01)
+        assertEquals(80000.0, groupedByDate["2026-10-28"]!!.sumOf { it.grandTotal }, 0.01)
+        assertEquals(35000.0, groupedByDate["2026-10-29"]!!.sumOf { it.grandTotal }, 0.01)
+    }
 }

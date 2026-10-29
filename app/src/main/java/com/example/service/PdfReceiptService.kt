@@ -167,8 +167,11 @@ object PdfReceiptService {
         currentY += 14f
 
         // 2. Metadata Rows
-        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID"))
-        val dateStr = dateFormat.format(Date(order.timestamp))
+        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID")).apply {
+            timeZone = com.example.ui.components.DateTimeUtils.WIB_ZONE
+        }
+        val effTime = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp(order)
+        val dateStr = dateFormat.format(Date(effTime))
         val orderTypeLabel = if (order.orderType == "TAKEAWAY") "Takeaway (Bungkus)" else "Dine-in (Makan di Tempat)"
         val cashierName = order.cashierName.ifBlank { "Rian Pratama" }
 
@@ -378,8 +381,11 @@ object PdfReceiptService {
         outletInfo: OutletInfo = OutletInfo(),
         receiptConfig: ReceiptCustomizerConfig = ReceiptCustomizerConfig()
     ): String {
-        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID"))
-        val dateStr = dateFormat.format(Date(order.timestamp))
+        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss 'WIB'", Locale("id", "ID")).apply {
+            timeZone = com.example.ui.components.DateTimeUtils.WIB_ZONE
+        }
+        val effTime = com.example.ui.components.DateTimeUtils.getOrderEffectiveTimestamp(order)
+        val dateStr = dateFormat.format(Date(effTime))
         val sb = StringBuilder()
 
         val orderTypeStr = if (order.orderType == "TAKEAWAY") "Bungkus (Takeaway)" else "Makan di Tempat (Dine-in)"
