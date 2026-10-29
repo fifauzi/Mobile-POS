@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.model.OpenBillEntity
@@ -216,22 +217,29 @@ fun OpenBillsListModal(
                                             text = bill.customerName.ifBlank { "Tamu Walk-in" },
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = TextDarkPrimary
+                                            color = TextDarkPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
                                         )
                                     }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
 
                                     // Order Type Pill
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
                                             .background(if (isDineIn) BrandBlueLight else Color(0xFFFEF3C7))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            .padding(horizontal = 7.dp, vertical = 2.5.dp)
                                     ) {
                                         Text(
                                             text = if (isDineIn) "🍽️ Dine-in" else "🥡 Bungkus",
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isDineIn) BrandBlue else Color(0xFFD97706)
+                                            color = if (isDineIn) BrandBlue else Color(0xFFD97706),
+                                            maxLines = 1,
+                                            softWrap = false
                                         )
                                     }
                                 }

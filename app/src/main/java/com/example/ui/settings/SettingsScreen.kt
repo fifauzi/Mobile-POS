@@ -277,7 +277,7 @@ fun SettingsScreen(
 
             // App version info
             Text(
-                text = "Caffeinery POS by BDS Tech v3.0.0 • Powered by BDS Tech",
+                text = "Caffeinery POS v3.0.0 • Powered by BDS Tech",
                 fontSize = 12.sp,
                 color = Color(0xFF94A3B8),
                 modifier = Modifier.align(Alignment.CenterHorizontally)
