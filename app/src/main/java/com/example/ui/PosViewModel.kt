@@ -27,6 +27,7 @@ import com.example.service.BluetoothPrinterDevice
 import com.example.service.CsvExportService
 import com.example.service.EscPosPrinterService
 import com.example.service.QrisPayloadGenerator
+import com.example.service.VariantDataMapper
 import com.example.ui.components.CurrencyUtils
 import com.example.ui.components.PosTab
 import kotlinx.coroutines.Dispatchers
@@ -76,8 +77,35 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         settingsStorage.initDefaultsIfEmpty()
 
         viewModelScope.launch(Dispatchers.IO) {
-            com.example.data.local.DatabaseSeeder.seedIfEmpty(database.posDao())
-            restoreActiveCartDraft()
+            if (!settingsStorage.isCleanWipeDone()) {
+                repository.wipeAllData()
+                settingsStorage.wipeAllStaffAndDrafts()
+                settingsStorage.markCleanWipeDone()
+                launch(Dispatchers.Main) {
+                    clearCart()
+                    _customerName.value = ""
+                    _employees.value = emptyList()
+                    _activeEmployee.value = settingsStorage.loadActiveEmployee()
+                    _activeShift.value = "Shift 1"
+                }
+            } else {
+                restoreActiveCartDraft()
+            }
+        }
+    }
+
+    fun wipeAllDataToZero() {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.wipeAllData()
+            settingsStorage.wipeAllStaffAndDrafts()
+            settingsStorage.markCleanWipeDone()
+            launch(Dispatchers.Main) {
+                clearCart()
+                _customerName.value = ""
+                _employees.value = emptyList()
+                _activeEmployee.value = settingsStorage.loadActiveEmployee()
+                _activeShift.value = "Shift 1"
+            }
         }
     }
 
@@ -213,12 +241,19 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         val updated = _employees.value + newItem
         _employees.value = updated
         settingsStorage.saveEmployees(updated)
+        if (_activeEmployee.value.id.isBlank() || _activeEmployee.value.name == "Belum Ada Kasir") {
+            setActiveEmployee(newItem)
+        }
     }
 
     fun removeEmployee(id: String) {
         val updated = _employees.value.filter { it.id != id }
         _employees.value = updated
         settingsStorage.saveEmployees(updated)
+        if (_activeEmployee.value.id == id) {
+            val fallback = updated.firstOrNull() ?: EmployeeItem(id = "", name = "Belum Ada Kasir", role = "Staff", shift = "Shift 1", pin = "")
+            setActiveEmployee(fallback)
+        }
     }
 
     private val _orderMethods = MutableStateFlow(settingsStorage.loadOrderMethods())
@@ -483,18 +518,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
         val orderItems = items.map { cartItem ->
             val catName = categories.value.find { it.id == cartItem.product.categoryId }?.name ?: "Coffee"
-            val varSize = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Size", ignoreCase = true) }
-                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
-            val varType = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Type", ignoreCase = true) }
-                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
-            val varBeans = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Beans", ignoreCase = true) }
-                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
-            val varGrind = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Grind", ignoreCase = true) }
-                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
-            val varSugar = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Sugar", ignoreCase = true) }
-                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
-            val varAddons = cartItem.selectedVariants.entries.firstOrNull { it.key.contains("Add", ignoreCase = true) }
-                ?.value?.joinToString(", ") { opt -> if (opt.priceAdjustment > 0) "${opt.name} (+${CurrencyUtils.formatIdr(opt.priceAdjustment)})" else opt.name } ?: "-"
+            val mappedVariants = VariantDataMapper.extractFromCartItem(cartItem)
 
             val b2bTag = if (cartItem.isB2bPriceApplied) " [B2B]" else ""
             val displayName = cartItem.product.name + b2bTag
@@ -518,13 +542,13 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 itemDiscount = cartItem.totalDiscountAmount,
                 lineTotal = cartItem.lineTotal,
                 categoryName = catName,
-                variantSize = varSize,
-                variantType = varType,
-                variantBeans = varBeans,
-                variantGrind = varGrind,
-                variantSugar = varSugar,
-                variantAddons = varAddons,
-                variantExtraTotal = cartItem.variantPriceDelta
+                variantSize = mappedVariants.size,
+                variantType = mappedVariants.type,
+                variantBeans = mappedVariants.beansType,
+                variantGrind = mappedVariants.grindSize,
+                variantSugar = mappedVariants.sugarLevel,
+                variantAddons = mappedVariants.addOns,
+                variantExtraTotal = mappedVariants.extraPriceTotal
             )
         }
 

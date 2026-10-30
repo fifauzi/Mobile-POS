@@ -89,4 +89,6 @@ class PosRepository(private val posDao: PosDao) {
     suspend fun insertVariantGroups(groups: List<VariantGroupEntity>) = posDao.insertVariantGroups(groups)
     suspend fun insertOrders(orders: List<OrderEntity>) = posDao.insertOrders(orders)
     suspend fun insertOrderItems(items: List<OrderItemEntity>) = posDao.insertOrderItems(items)
+
+    suspend fun wipeAllData() = posDao.wipeAllDatabaseData()
 }

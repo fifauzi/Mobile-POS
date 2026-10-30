@@ -59,6 +59,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -631,7 +633,8 @@ fun SettingInputField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
-    keyboardType: KeyboardType = KeyboardType.Text
+    keyboardType: KeyboardType = KeyboardType.Text,
+    visualTransformation: VisualTransformation = if (keyboardType == KeyboardType.NumberPassword || keyboardType == KeyboardType.Password) PasswordVisualTransformation() else VisualTransformation.None
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Text(text = label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextDarkPrimary)
@@ -640,6 +643,7 @@ fun SettingInputField(
             value = value,
             onValueChange = onValueChange,
             singleLine = true,
+            visualTransformation = visualTransformation,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             shape = RoundedCornerShape(14.dp),
             colors = OutlinedTextFieldDefaults.colors(

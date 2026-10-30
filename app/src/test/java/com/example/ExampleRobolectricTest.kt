@@ -705,4 +705,126 @@ class ExampleRobolectricTest {
         assertEquals(80000.0, groupedByDate["2026-10-28"]!!.sumOf { it.grandTotal }, 0.01)
         assertEquals(35000.0, groupedByDate["2026-10-29"]!!.sumOf { it.grandTotal }, 0.01)
     }
+
+    @Test
+    fun `complete data wipeout resets database tables and staff to zero`() = kotlinx.coroutines.runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, com.example.data.local.AppDatabase::class.java).build()
+        val dao = db.posDao()
+
+        // Populate database with categories, products, variant groups, and orders
+        com.example.data.local.DatabaseSeeder.seedIfEmpty(dao)
+        assertTrue(dao.getProductCount() > 0)
+        assertTrue(dao.getCategoryCount() > 0)
+        assertTrue(dao.getOrderCount() > 0)
+        assertTrue(dao.getVariantGroupCount() > 0)
+
+        // Populate staff and cart drafts
+        val storage = com.example.data.local.SettingsStorageService(context)
+        storage.saveEmployees(listOf(
+            com.example.domain.model.EmployeeItem(name = "Test Staff", role = "Barista", pin = "9999")
+        ))
+        storage.saveActiveCartDraft("[]", "Cust A", "DINE_IN", "NONE", 0.0)
+        assertEquals(1, storage.loadEmployees().size)
+        assertNotNull(storage.loadActiveCartDraft())
+
+        // Execute complete wipeout
+        dao.wipeAllDatabaseData()
+        storage.wipeAllStaffAndDrafts()
+
+        // Assert 100% clean zero state
+        assertEquals(0, dao.getProductCount())
+        assertEquals(0, dao.getCategoryCount())
+        assertEquals(0, dao.getOrderCount())
+        assertEquals(0, dao.getVariantGroupCount())
+        assertTrue(storage.loadEmployees().isEmpty())
+        assertEquals("Belum Ada Kasir", storage.loadActiveEmployee().name)
+        org.junit.Assert.assertNull(storage.loadActiveCartDraft())
+
+        db.close()
+    }
+
+    @Test
+    fun `variant data mapper accurately extracts attributes from cart item map`() {
+        val product = com.example.data.local.model.ProductEntity(
+            id = 50,
+            sku = "CF-050",
+            name = "Spanish Latte",
+            categoryId = "coffee",
+            basePrice = 30000.0,
+            costPrice = 12000.0,
+            stockQuantity = 100
+        )
+        val selectedVariants = mapOf(
+            "Size" to listOf(com.example.domain.model.VariantOption("Large", 5000.0)),
+            "Type" to listOf(com.example.domain.model.VariantOption("Iced", 0.0)),
+            "Beans Type" to listOf(com.example.domain.model.VariantOption("Single Origin Ethiopia", 8000.0)),
+            "Grind Size" to listOf(com.example.domain.model.VariantOption("Espresso (Fine)", 0.0)),
+            "Sugar Level" to listOf(com.example.domain.model.VariantOption("Less Sugar 50%", 0.0)),
+            "Add-ons" to listOf(com.example.domain.model.VariantOption("Oat Milk Sub", 8000.0))
+        )
+        val cartItem = com.example.domain.model.CartItem(
+            product = product,
+            selectedVariants = selectedVariants,
+            quantity = 1
+        )
+
+        val mapped = com.example.service.VariantDataMapper.extractFromCartItem(cartItem)
+        assertEquals("Large (+Rp 5.000)", mapped.size)
+        assertEquals("Iced", mapped.type)
+        assertEquals("Single Origin Ethiopia (+Rp 8.000)", mapped.beansType)
+        assertEquals("Espresso (Fine)", mapped.grindSize)
+        assertEquals("Less Sugar 50%", mapped.sugarLevel)
+        assertEquals("Oat Milk Sub (+Rp 8.000)", mapped.addOns)
+        assertEquals(21000.0, mapped.extraPriceTotal, 0.01)
+    }
+
+    @Test
+    fun `csv export generator populates variant columns from summary when individual entity fields are unpopulated`() {
+        val order = OrderEntity(
+            invoiceNumber = "INV-20261029-999999",
+            timestamp = System.currentTimeMillis(),
+            customerName = "Customer Test",
+            orderType = "TAKEAWAY",
+            subtotal = 35000.0,
+            grandTotal = 38500.0,
+            paymentMethod = "QRIS"
+        )
+        // Simulate order item where variant columns were unpopulated or empty, but variantSummary was saved
+        val item = OrderItemEntity(
+            orderInvoiceNumber = "INV-20261029-999999",
+            productId = 1,
+            productName = "Iced Latte Specialty",
+            sku = "CF-001",
+            basePrice = 28000.0,
+            variantSummary = "Large (+Rp 5.000), Iced, Single Origin Ethiopia, Less Sugar 50%, Extra Espresso Shot (+Rp 6.000)",
+            unitPrice = 39000.0,
+            quantity = 1,
+            lineTotal = 39000.0,
+            categoryName = "Coffee",
+            variantSize = "",
+            variantType = "",
+            variantBeans = "",
+            variantGrind = "",
+            variantSugar = "",
+            variantAddons = "",
+            variantExtraTotal = 0.0
+        )
+
+        val csv = com.example.service.CsvExportService.generateSalesCsv(
+            listOf(order),
+            mapOf("INV-20261029-999999" to listOf(item))
+        )
+
+        // Verify CSV header
+        assertTrue(csv.contains("Variant - Size,Variant - Type,Variant - Beans Type,Variant - Grind Size,Variant - Sugar Level,Variant - Add-ons,Variant Extra Price Total"))
+
+        // Verify that the columns are NOT empty or dashes, but filled from the summary
+        assertTrue(csv.contains("Large (+Rp 5.000)"))
+        assertTrue(csv.contains("Iced"))
+        assertTrue(csv.contains("Single Origin Ethiopia"))
+        assertTrue(csv.contains("Less Sugar 50%"))
+        assertTrue(csv.contains("Extra Espresso Shot (+Rp 6.000)"))
+        assertTrue(csv.contains("11000.0")) // 5000 + 6000
+    }
 }

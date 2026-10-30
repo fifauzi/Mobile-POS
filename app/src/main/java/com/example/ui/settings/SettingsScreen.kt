@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.GroupAdd
@@ -95,6 +96,7 @@ fun SettingsScreen(
     val context = LocalContext.current
 
     var activeModal by remember { mutableStateOf<SettingsModalType?>(null) }
+    var showResetDialog by remember { mutableStateOf(false) }
 
     androidx.activity.compose.BackHandler(enabled = activeModal != null) {
         activeModal = null
@@ -257,6 +259,18 @@ fun SettingsScreen(
                         subtitle = "Kirim spreadsheet penjualan ke bdscoffeecompany@gmail.com.",
                         onClick = { viewModel.sendSalesReportEmail(context) }
                     )
+
+                    HorizontalDivider(thickness = 0.5.dp, color = BorderSubtle, modifier = Modifier.padding(start = 72.dp))
+
+                    // Item 11: Reset & Bersihkan Data (Data Wipeout)
+                    SettingsItemRow(
+                        icon = Icons.Default.DeleteForever,
+                        iconBg = Color(0xFFFEE2E2),
+                        iconTint = Color(0xFFDC2626),
+                        title = "Reset Data (Mulai dari Nol)",
+                        subtitle = "Hapus seluruh riwayat penjualan, produk & akun staff.",
+                        onClick = { showResetDialog = true }
+                    )
                 }
             }
 
@@ -271,6 +285,38 @@ fun SettingsScreen(
                 SettingsModalType.KATEGORI_PRODUK -> CategoryManagementSheet(viewModel = viewModel, onDismiss = { activeModal = null })
                 SettingsModalType.MANAJEMEN_VARIAN -> com.example.ui.variants.VariantManagementModalSheet(viewModel = viewModel, onDismiss = { activeModal = null })
                 null -> {}
+            }
+
+            if (showResetDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showResetDialog = false },
+                    title = {
+                        Text("Bersihkan Seluruh Data ke Nol?", fontWeight = FontWeight.Bold, color = TextDarkPrimary)
+                    },
+                    text = {
+                        Text(
+                            "Tindakan ini akan menghapus seluruh data penjualan, katalog produk, konfigurasi varian, dan akun pegawai. Data akan kembali bersih dari nol ($0 / 0 transaksi).",
+                            fontSize = 13.sp,
+                            color = TextDarkSecondary
+                        )
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                viewModel.wipeAllDataToZero()
+                                showResetDialog = false
+                                android.widget.Toast.makeText(context, "Data berhasil di-reset ke nol", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Text("Ya, Bersihkan Data", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { showResetDialog = false }) {
+                            Text("Batal", color = TextDarkSecondary)
+                        }
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))

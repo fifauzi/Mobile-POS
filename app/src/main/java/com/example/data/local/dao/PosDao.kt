@@ -148,4 +148,33 @@ interface PosDao {
 
     @Query("DELETE FROM open_bills WHERE id = :id")
     suspend fun deleteOpenBillById(id: String)
+
+    // Complete Data Wipeout queries
+    @Query("DELETE FROM order_items")
+    suspend fun clearAllOrderItems()
+
+    @Query("DELETE FROM orders")
+    suspend fun clearAllOrders()
+
+    @Query("DELETE FROM open_bills")
+    suspend fun clearAllOpenBills()
+
+    @Query("DELETE FROM products")
+    suspend fun clearAllProducts()
+
+    @Query("DELETE FROM categories")
+    suspend fun clearAllCategories()
+
+    @Query("DELETE FROM variant_groups")
+    suspend fun clearAllVariantGroups()
+
+    @Transaction
+    suspend fun wipeAllDatabaseData() {
+        clearAllOrderItems()
+        clearAllOrders()
+        clearAllOpenBills()
+        clearAllProducts()
+        clearAllCategories()
+        clearAllVariantGroups()
+    }
 }

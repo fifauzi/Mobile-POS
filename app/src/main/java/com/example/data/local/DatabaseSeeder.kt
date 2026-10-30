@@ -430,7 +430,14 @@ object DatabaseSeeder {
                     unitPrice = 32000.0,
                     quantity = 1,
                     lineTotal = 32000.0,
-                    categoryName = "Non-Coffee"
+                    categoryName = "Non-Coffee",
+                    variantSize = "Regular",
+                    variantType = "Iced",
+                    variantBeans = "-",
+                    variantGrind = "-",
+                    variantSugar = "Normal 100%",
+                    variantAddons = "-",
+                    variantExtraTotal = 0.0
                 ),
                 OrderItemEntity(
                     orderInvoiceNumber = "INV-20261029-142010",
@@ -443,7 +450,14 @@ object DatabaseSeeder {
                     unitPrice = 26000.0,
                     quantity = 1,
                     lineTotal = 26000.0,
-                    categoryName = "Pastry & Bakery"
+                    categoryName = "Pastry & Bakery",
+                    variantSize = "-",
+                    variantType = "-",
+                    variantBeans = "-",
+                    variantGrind = "-",
+                    variantSugar = "-",
+                    variantAddons = "-",
+                    variantExtraTotal = 0.0
                 ),
 
                 // Items for INV-20261029-113045 (Oct 29 B2B Tier 1 order)
@@ -458,7 +472,14 @@ object DatabaseSeeder {
                     unitPrice = 85000.0,
                     quantity = 6,
                     lineTotal = 510000.0,
-                    categoryName = "Roasted Beans"
+                    categoryName = "Roasted Beans",
+                    variantSize = "250g",
+                    variantType = "-",
+                    variantBeans = "House Blend (Brazil/Sumatra)",
+                    variantGrind = "Whole Bean",
+                    variantSugar = "-",
+                    variantAddons = "-",
+                    variantExtraTotal = 0.0
                 ),
 
                 // Items for INV-20261028-161520 (Oct 28)
@@ -473,7 +494,14 @@ object DatabaseSeeder {
                     unitPrice = 28000.0,
                     quantity = 2,
                     lineTotal = 56000.0,
-                    categoryName = "Coffee"
+                    categoryName = "Coffee",
+                    variantSize = "Regular",
+                    variantType = "Iced",
+                    variantBeans = "House Blend",
+                    variantGrind = "-",
+                    variantSugar = "Less Sugar 50%",
+                    variantAddons = "-",
+                    variantExtraTotal = 0.0
                 ),
                 OrderItemEntity(
                     orderInvoiceNumber = "INV-20261028-161520",
@@ -486,7 +514,14 @@ object DatabaseSeeder {
                     unitPrice = 24000.0,
                     quantity = 1,
                     lineTotal = 24000.0,
-                    categoryName = "Pastry & Bakery"
+                    categoryName = "Pastry & Bakery",
+                    variantSize = "-",
+                    variantType = "-",
+                    variantBeans = "-",
+                    variantGrind = "-",
+                    variantSugar = "-",
+                    variantAddons = "-",
+                    variantExtraTotal = 0.0
                 ),
 
                 // Items for INV-20261027-091520 (Oct 27)
@@ -501,7 +536,14 @@ object DatabaseSeeder {
                     unitPrice = 34000.0,
                     quantity = 1,
                     lineTotal = 34000.0,
-                    categoryName = "Coffee"
+                    categoryName = "Coffee",
+                    variantSize = "Regular",
+                    variantType = "Hot",
+                    variantBeans = "House Blend",
+                    variantGrind = "-",
+                    variantSugar = "Normal 100%",
+                    variantAddons = "-",
+                    variantExtraTotal = 0.0
                 )
             )
             dao.insertOrderItems(sampleOrderItems)

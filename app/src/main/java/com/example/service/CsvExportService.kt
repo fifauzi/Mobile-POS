@@ -64,12 +64,7 @@ object CsvExportService {
             } else {
                 for (item in items) {
                     val cat = item.categoryName.ifBlank { "Coffee" }
-                    val vSize = item.variantSize.ifBlank { "-" }
-                    val vType = item.variantType.ifBlank { "-" }
-                    val vBeans = item.variantBeans.ifBlank { "-" }
-                    val vGrind = item.variantGrind.ifBlank { "-" }
-                    val vSugar = item.variantSugar.ifBlank { "-" }
-                    val vAddons = item.variantAddons.ifBlank { "-" }
+                    val mapped = VariantDataMapper.resolveOrderItemVariants(item)
 
                     val row = listOf(
                         escapeCsv(order.invoiceNumber),
@@ -80,13 +75,13 @@ object CsvExportService {
                         escapeCsv(cat),
                         escapeCsv(item.productName),
                         item.basePrice.toString(),
-                        escapeCsv(vSize),
-                        escapeCsv(vType),
-                        escapeCsv(vBeans),
-                        escapeCsv(vGrind),
-                        escapeCsv(vSugar),
-                        escapeCsv(vAddons),
-                        item.variantExtraTotal.toString(),
+                        escapeCsv(mapped.size),
+                        escapeCsv(mapped.type),
+                        escapeCsv(mapped.beansType),
+                        escapeCsv(mapped.grindSize),
+                        escapeCsv(mapped.sugarLevel),
+                        escapeCsv(mapped.addOns),
+                        mapped.extraPriceTotal.toString(),
                         item.quantity.toString(),
                         item.lineTotal.toString(),
                         item.itemDiscount.toString(),

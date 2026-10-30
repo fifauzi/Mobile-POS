@@ -44,6 +44,7 @@ class SettingsStorageService(context: Context) {
         private const val KEY_SELECTED_PRINTER = "key_selected_printer"
         private const val KEY_CART_DRAFT = "key_cart_draft"
         private const val KEY_IS_INITIALIZED = "key_is_initialized"
+        private const val KEY_CLEAN_WIPE_PERFORMED_V1 = "key_clean_wipe_performed_v1"
 
         fun normalizeShift(raw: String): String {
             return when {
@@ -52,6 +53,12 @@ class SettingsStorageService(context: Context) {
                 else -> "Shift 1"
             }
         }
+    }
+
+    fun isCleanWipeDone(): Boolean = prefs.getBoolean(KEY_CLEAN_WIPE_PERFORMED_V1, false)
+
+    fun markCleanWipeDone() {
+        prefs.edit().putBoolean(KEY_CLEAN_WIPE_PERFORMED_V1, true).apply()
     }
 
     /**
@@ -65,14 +72,8 @@ class SettingsStorageService(context: Context) {
             saveOrderMethods(OrderMethodsConfig())
             savePaymentGateways(PaymentGatewaysConfig())
 
-            val defaultEmployees = listOf(
-                EmployeeItem(name = "Rian Pratama", role = "Manager / Owner", shift = "Shift 1", pin = "8899"),
-                EmployeeItem(name = "Maya Sari", role = "Head Barista", shift = "Shift 2", pin = "1234"),
-                EmployeeItem(name = "Budi Santoso", role = "Kasir", shift = "Shift 1", pin = "2024"),
-                EmployeeItem(name = "Dimas Anggara", role = "Barista", shift = "Shift 2", pin = "1122")
-            )
-            saveEmployees(defaultEmployees)
-            saveActiveEmployee(defaultEmployees.first())
+            saveEmployees(emptyList())
+            saveActiveEmployee(EmployeeItem(id = "", name = "Belum Ada Kasir", role = "Staff", shift = "Shift 1", pin = ""))
             saveActiveShift("Shift 1")
             saveSelectedPrinter("")
 
@@ -264,13 +265,8 @@ class SettingsStorageService(context: Context) {
 
     fun loadEmployees(): List<EmployeeItem> {
         val raw = prefs.getString(KEY_EMPLOYEES, null)
-        if (raw.isNullOrBlank()) {
-            return listOf(
-                EmployeeItem(name = "Rian Pratama", role = "Manager / Owner", shift = "Shift 1", pin = "8899"),
-                EmployeeItem(name = "Maya Sari", role = "Head Barista", shift = "Shift 2", pin = "1234"),
-                EmployeeItem(name = "Budi Santoso", role = "Kasir", shift = "Shift 1", pin = "2024"),
-                EmployeeItem(name = "Dimas Anggara", role = "Barista", shift = "Shift 2", pin = "1122")
-            )
+        if (raw.isNullOrBlank() || raw.trim() == "[]") {
+            return emptyList()
         }
         return try {
             val arr = JSONArray(raw)
@@ -283,23 +279,15 @@ class SettingsStorageService(context: Context) {
                         name = obj.optString("name", "Karyawan"),
                         role = obj.optString("role", "Kasir"),
                         shift = normalizeShift(obj.optString("shift", "Shift 1")),
-                        pin = obj.optString("pin", "1234"),
+                        pin = obj.optString("pin", ""),
                         isActive = obj.optBoolean("isActive", true)
                     )
                 )
             }
-            if (result.isEmpty()) {
-                listOf(
-                    EmployeeItem(name = "Rian Pratama", role = "Manager / Owner", shift = "Shift 1", pin = "8899")
-                )
-            } else {
-                result
-            }
+            result
         } catch (e: Exception) {
             e.printStackTrace()
-            listOf(
-                EmployeeItem(name = "Rian Pratama", role = "Manager / Owner", shift = "Shift 1", pin = "8899")
-            )
+            emptyList()
         }
     }
 
@@ -318,21 +306,21 @@ class SettingsStorageService(context: Context) {
     fun loadActiveEmployee(): EmployeeItem {
         val raw = prefs.getString(KEY_ACTIVE_EMPLOYEE, null)
         if (raw.isNullOrBlank()) {
-            return EmployeeItem(name = "Rian Pratama", role = "Manager / Owner", shift = "Shift 1", pin = "8899")
+            return EmployeeItem(id = "", name = "Belum Ada Kasir", role = "Staff", shift = "Shift 1", pin = "")
         }
         return try {
             val json = JSONObject(raw)
             EmployeeItem(
-                id = json.optString("id", java.util.UUID.randomUUID().toString()),
-                name = json.optString("name", "Rian Pratama"),
-                role = json.optString("role", "Manager / Owner"),
+                id = json.optString("id", ""),
+                name = json.optString("name", "Belum Ada Kasir"),
+                role = json.optString("role", "Staff"),
                 shift = normalizeShift(json.optString("shift", "Shift 1")),
-                pin = json.optString("pin", "8899"),
+                pin = json.optString("pin", ""),
                 isActive = json.optBoolean("isActive", true)
             )
         } catch (e: Exception) {
             e.printStackTrace()
-            EmployeeItem(name = "Rian Pratama", role = "Manager / Owner", shift = "Shift 1", pin = "8899")
+            EmployeeItem(id = "", name = "Belum Ada Kasir", role = "Staff", shift = "Shift 1", pin = "")
         }
     }
 
@@ -406,5 +394,12 @@ class SettingsStorageService(context: Context) {
 
     fun clearActiveCartDraft() {
         prefs.edit().remove(KEY_CART_DRAFT).apply()
+    }
+
+    fun wipeAllStaffAndDrafts() {
+        clearActiveCartDraft()
+        saveEmployees(emptyList())
+        saveActiveEmployee(EmployeeItem(id = "", name = "Belum Ada Kasir", role = "Staff", shift = "Shift 1", pin = ""))
+        saveActiveShift("Shift 1")
     }
 }

@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -169,71 +171,89 @@ fun CashierShiftSwitcherModal(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                employees.forEach { emp ->
-                    val isSelected = selectedEmployee.id == emp.id
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(if (isSelected) BrandBlueLight.copy(alpha = 0.5f) else SurfaceSubtle)
-                            .border(1.5.dp, if (isSelected) BrandBlue else BorderSubtle, RoundedCornerShape(16.dp))
-                            .clickable {
-                                selectedEmployee = emp
-                                pinError = false
-                            }
-                            .padding(14.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            if (employees.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(SurfaceSubtle)
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Belum ada kasir / staff terdaftar.\nTambahkan kasir di menu Settings.",
+                        fontSize = 13.sp,
+                        color = TextDarkSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    employees.forEach { emp ->
+                        val isSelected = selectedEmployee.id == emp.id
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(if (isSelected) BrandBlueLight.copy(alpha = 0.5f) else SurfaceSubtle)
+                                .border(1.5.dp, if (isSelected) BrandBlue else BorderSubtle, RoundedCornerShape(16.dp))
+                                .clickable {
+                                    selectedEmployee = emp
+                                    pinError = false
+                                }
+                                .padding(14.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isSelected) BrandBlue else Color(0xFFE2E8F0)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = emp.name.take(1).uppercase(),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) Color.White else TextDarkPrimary
-                                    )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isSelected) BrandBlue else Color(0xFFE2E8F0)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = emp.name.take(1).uppercase(),
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) Color.White else TextDarkPrimary
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = emp.name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDarkPrimary
+                                        )
+                                        Text(
+                                            text = emp.role,
+                                            fontSize = 12.sp,
+                                            color = TextDarkSecondary
+                                        )
+                                    }
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = emp.name,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextDarkPrimary
-                                    )
-                                    Text(
-                                        text = emp.role,
-                                        fontSize = 12.sp,
-                                        color = TextDarkSecondary
-                                    )
-                                }
-                            }
 
-                            if (isSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(BrandBlue),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                if (isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(BrandBlue),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -300,9 +320,9 @@ fun CashierShiftSwitcherModal(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // PIN Verification (Optional/Quick Confirm)
+            // PIN Verification (Obfuscated & Securely Masked)
             Text(
-                text = "VERIFIKASI PIN (DEFAULT: ${selectedEmployee.pin})",
+                text = "VERIFIKASI PIN OTORISASI",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextDarkSecondary,
@@ -318,9 +338,10 @@ fun CashierShiftSwitcherModal(
                         pinError = false
                     }
                 },
-                placeholder = { Text("Masukkan PIN (${selectedEmployee.pin})", fontSize = 12.sp) },
+                placeholder = { Text("••••", fontSize = 14.sp, color = TextDarkMuted) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 leadingIcon = {
                     Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
                 },
@@ -335,7 +356,7 @@ fun CashierShiftSwitcherModal(
                     focusedBorderColor = BrandBlue,
                     unfocusedBorderColor = BorderSubtle
                 ),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().testTag("cashier_pin_input")
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -343,8 +364,12 @@ fun CashierShiftSwitcherModal(
             // Action Button
             Button(
                 onClick = {
-                    // Accept if empty (1-tap fast switch) or if entered PIN matches
-                    if (enteredPin.isBlank() || enteredPin == selectedEmployee.pin) {
+                    if (employees.isEmpty()) {
+                        onDismiss()
+                        return@Button
+                    }
+                    // Accept if empty PIN or entered PIN matches
+                    if (selectedEmployee.pin.isBlank() || enteredPin == selectedEmployee.pin) {
                         onConfirmSwitch(selectedEmployee, selectedShift)
                         onDismiss()
                     } else {
